@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fortress Relay</title>
+    <meta
+      name="description"
+      content="초대 링크만으로 바로 입장하는 브라우저 포트리스 스타일 탱크 대전"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=Paytone+One&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css?v=5" />
+  </head>
+  <body>
+    <div class="shell">
+      <section id="launcher-screen" class="launcher-screen">
+        <header class="launcher-top">
+          <div class="top-badges">
+            <span id="status-chip" class="top-chip sky hidden">대기 중</span>
+            <span id="room-chip" class="top-chip sand hidden">No Room</span>
+          </div>
+        </header>
+
+        <div class="launcher-stage">
+          <section class="showcase-panel">
+            <div class="trophy-badge">
+              <span class="trophy-icon">T</span>
+              <div>
+                <p class="badge-label">Ready Score</p>
+                <strong id="readiness-score">0030</strong>
+              </div>
+            </div>
+
+            <div class="hero-row">
+              <div class="hero-scene">
+                <div class="hero-cloud hero-cloud-a"></div>
+                <div class="hero-cloud hero-cloud-b"></div>
+                <div class="hero-rock hero-rock-a"></div>
+                <div class="hero-rock hero-rock-b"></div>
+                <div id="hero-vehicle" class="hero-vehicle">
+                  <canvas
+                    id="hero-vehicle-canvas"
+                    class="hero-vehicle-canvas"
+                    width="240"
+                    height="170"
+                  ></canvas>
+                </div>
+                <div class="hero-platform"></div>
+              </div>
+              <canvas id="stats-radar" width="320" height="290"></canvas>
+            </div>
+
+            <div class="tank-copy">
+              <p id="selected-tank-role" class="section-mini">중장갑 포격형</p>
+              <h2 id="selected-tank-name">Ironclad</h2>
+              <p id="selected-tank-description" class="section-copy"></p>
+              <div class="weapon-row">
+                <span class="weapon-pill">Weapon</span>
+                <strong id="selected-tank-weapon"></strong>
+              </div>
+            </div>
+
+            <div class="ticker-card">
+              <p class="section-mini">Ticker</p>
+              <p id="ticker-text" class="ticker-text">
+                방을 만들면 초대 링크를 복사할 수 있고, 링크를 연 참가자는 바로 입장합니다.
+              </p>
+            </div>
+
+            <div class="lobby-preview">
+              <div class="preview-head">
+                <div>
+                  <p class="section-mini">Lobby Preview</p>
+                  <h3>탱크 현황</h3>
+                </div>
+                <span id="player-count-chip" class="tiny-chip">0 / 4</span>
+              </div>
+              <div id="player-preview" class="player-preview"></div>
+            </div>
+          </section>
+
+          <aside class="action-rail">
+            <article class="action-card compact">
+              <p id="summary-kicker" class="section-mini">Launch Pad</p>
+              <h3 id="summary-title">새 로비 열기</h3>
+              <p id="summary-text" class="section-copy">
+                닉네임과 맵을 고른 뒤 한 번만 링크를 보내면 됩니다.
+              </p>
+              <div class="summary-tags">
+                <span id="summary-theme" class="tiny-chip">Sky Harbor</span>
+                <span id="summary-players" class="tiny-chip">최대 4명</span>
+              </div>
+              <div class="map-preview-card">
+                <div class="preview-head">
+                  <div>
+                    <p class="section-mini">Map Shape</p>
+                    <h3>미니맵</h3>
+                  </div>
+                </div>
+                <canvas id="lobby-minimap" class="lobby-minimap" width="320" height="156"></canvas>
+              </div>
+            </article>
+
+            <article class="action-card main-card">
+              <label class="field">
+                <span>닉네임</span>
+                <input id="player-name-input" type="text" maxlength="18" value="Commander" />
+              </label>
+
+              <div id="invite-preview" class="invite-preview hidden">
+                <span>초대 링크</span>
+                <input id="invite-link-field" type="text" readonly />
+              </div>
+
+              <div id="invite-detected" class="invite-detected hidden">
+                <span>연결 정보</span>
+                <strong id="invite-room-name">호스트 연결</strong>
+                <p id="invite-room-meta" class="section-copy"></p>
+              </div>
+
+              <div class="small-actions">
+                <div id="map-cycle-control" class="map-cycle-control">
+                  <button id="map-prev-btn" class="soft-btn map-arrow-btn" type="button" aria-label="이전 맵">
+                    <span aria-hidden="true">&#x2039;</span>
+                  </button>
+                  <span id="map-cycle-label" class="map-cycle-label">Canyon Bridge</span>
+                  <button id="map-next-btn" class="soft-btn map-arrow-btn" type="button" aria-label="다음 맵">
+                    <span aria-hidden="true">&#x203A;</span>
+                  </button>
+                </div>
+                <button id="copy-invite-btn" class="soft-btn hidden">링크 복사</button>
+                <button id="add-bot-btn" class="soft-btn hidden">봇 채우기</button>
+                <button id="leave-room-btn" class="soft-btn hidden">나가기</button>
+              </div>
+
+              <p id="panel-note" class="panel-note">
+                초대 링크를 연 참가자는 승인 링크를 다시 보낼 필요 없이 바로 로비에 연결됩니다.
+              </p>
+            </article>
+
+            <button id="main-action-btn" class="start-button">방 만들기</button>
+          </aside>
+        </div>
+
+        <div id="tank-strip" class="tank-strip"></div>
+
+      </section>
+
+      <section id="battle-screen" class="battle-screen hidden">
+        <div class="battle-top">
+          <div class="battle-top-left">
+            <span id="phase-pill" class="battle-pill">전투 준비</span>
+            <strong id="turn-label">TURN -</strong>
+          </div>
+          <div class="battle-top-right">
+            <button id="battle-leave-btn" class="battle-mini-btn">나가기</button>
+          </div>
+        </div>
+
+        <div class="battle-frame">
+          <canvas id="battle-canvas" width="1400" height="760"></canvas>
+          <div class="battle-overlay">
+            <div id="battle-banner" class="battle-banner"></div>
+            <div id="battle-roster" class="battle-roster"></div>
+          </div>
+        </div>
+
+        <div class="battle-power-strip">
+          <span id="wind-pill" class="battle-pill alt">바람 없음</span>
+          <div class="power-meter">
+            <span id="power-label" class="power-label">POWER 34</span>
+            <div class="power-track">
+              <div id="power-manual-marker" class="power-manual-marker hidden">
+                <span id="power-manual-value" class="power-manual-value">표시 0</span>
+              </div>
+              <div id="power-previous-marker" class="power-previous-marker hidden">
+                <span id="power-previous-value" class="power-previous-value">이전 0</span>
+              </div>
+              <div id="power-fill" class="power-fill"></div>
+            </div>
+            <span id="fuel-label" class="power-label">FUEL 100</span>
+            <div id="fuel-track" class="power-track fuel-track">
+              <div id="fuel-fill" class="fuel-fill"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script type="module" src="./app.js?v=6"></script>
+  </body>
+</html>
