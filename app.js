@@ -21,6 +21,7 @@ import {
   TANK_IDS,
   TEAM_COLORS,
   resolveTeamColor,
+  resolveTankFill,
 } from "./src/render/tankRender.js";
 import {
   createTurnManager,
@@ -3588,15 +3589,17 @@ function renderTankPreviewCanvas(canvas, tankId, variant = "tile") {
     pill: { x: 0.5, y: 0.86, scale: 0.45 },
   };
   const p = profiles[variant] ?? profiles.tile;
-  const team = resolveTeamColor(null, null, 0);
-  preRasterize(tankId, team).catch(() => {});
+  const tank = TANK_TYPES[tankId] ?? TANK_TYPES.armor;
+  // Use tank's own colors for previews (FFA mode — no match context)
+  const fillColor = resolveTankFill(null, tank, null, 0);
+  preRasterize(tankId, fillColor).catch(() => {});
   renderTankToCanvas(ctx, {
     tankId,
     x: canvas.width * p.x,
     y: canvas.height * p.y,
     angle: 0,
     turretAngle: -15 * (Math.PI / 180),
-    teamColor: team,
+    teamColor: fillColor,
     scale: p.scale,
   });
 }
@@ -5944,8 +5947,9 @@ function drawPlayer(player) {
     y: player.y,
     angle: 0,
     turretAngle: degToRad(player.angle),
-    teamColor: resolveTeamColor(
+    teamColor: resolveTankFill(
       app.game.match ?? null,
+      tank,
       player.id,
       app.game.players.indexOf(player),
     ),

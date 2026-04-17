@@ -124,6 +124,35 @@ export function resolveTeamColor(match, playerId, joinIndex) {
 }
 
 /**
+ * Resolve the actual fill colors for a tank, using tank.visual.primaryColor in FFA
+ * and blending with team palette in team mode.
+ *
+ * @param {object|null} match       - match state from createMatch, or null for FFA
+ * @param {object}      tank        - tank definition from TANK_TYPES
+ * @param {string}      playerId    - player id
+ * @param {number}      joinIndex   - 0-based index in the player join order
+ * @returns {{ name: string, primary: string, secondary: string }}
+ */
+export function resolveTankFill(match, tank, playerId, joinIndex) {
+  const tankPrimary = tank?.visual?.primaryColor ?? "#ffb84f";
+  const tankSecondary = tank?.visual?.secondaryColor ?? "#7a4a16";
+  if (match && match.teams && Object.keys(match.teams).length > 0) {
+    const teamIndex = match.teams[playerId] ?? 0;
+    const team = TEAM_COLORS[teamIndex % TEAM_COLORS.length];
+    return {
+      name: `${team.name}:${tankPrimary}`,
+      primary: mixColors(tankPrimary, team.primary, 0.4),
+      secondary: mixColors(tankSecondary, team.secondary, 0.4),
+    };
+  }
+  return {
+    name: `ffa:${tankPrimary}`,
+    primary: tankPrimary,
+    secondary: tankSecondary,
+  };
+}
+
+/**
  * Recoil curve: piecewise — 0→0.4 ramps 0→1, 0.4→1.0 eases 1→0.
  *
  * @param {number} phase  Value in [0, 1]
@@ -268,17 +297,23 @@ export function renderTankToCanvas(ctx, opts) {
     scale = 1,
   } = opts;
 
-  const key = tankCacheKey(tankId, teamColor.name);
+  // Accept both {name, primary, secondary} (old) and {primary, secondary} (new, no .name).
+  // Normalize to always have a .name so cache key and bitmap lookup work correctly.
+  const resolvedColor = teamColor && !teamColor.name
+    ? { name: teamColor.primary, primary: teamColor.primary, secondary: teamColor.secondary }
+    : teamColor;
+
+  const key = tankCacheKey(tankId, resolvedColor.name);
   const bitmap = _bitmapCache.get(key);
 
   if (!bitmap) {
     // Placeholder rect while rasterization is in progress
     ctx.save();
-    ctx.fillStyle = teamColor.primary + "88";
+    ctx.fillStyle = resolvedColor.primary + "88";
     ctx.fillRect(x - 20 * scale, y - 14 * scale, 40 * scale, 28 * scale);
     ctx.restore();
     // Kick off rasterization (fire-and-forget)
-    preRasterize(tankId, teamColor).catch(() => {});
+    preRasterize(tankId, resolvedColor).catch(() => {});
     return;
   }
 
