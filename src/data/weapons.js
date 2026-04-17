@@ -79,7 +79,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 38, radius: 46, craterMultiplier: 0.96, gravityScale: 1.02, windFactor: 0.88, speedMultiplier: 0.96 }),
-    fx: { trail: "#ffb84f", hitSprite: "boom-mid" },
+    fx: { trail: "#ffb84f", hitSprite: "boom-mid", shape: "bullet-round" },
   },
   armor_ss2: {
     name: "헤비 버스트",
@@ -87,7 +87,7 @@ export const WEAPONS = {
     delayMultiplier: 1.3,
     perMatchLimit: null,
     projectile: base({ damage: 52, radius: 58, craterMultiplier: 1.1, gravityScale: 1.04, windFactor: 0.82, speedMultiplier: 0.90 }),
-    fx: { trail: "#ff8800", hitSprite: "boom-large" },
+    fx: { trail: "#ff8800", hitSprite: "boom-large", shape: "bullet-round" },
   },
   armor_new: {
     name: "시즈 스톰",
@@ -98,7 +98,7 @@ export const WEAPONS = {
       damage: 20, radius: 30, craterMultiplier: 0.80, speedMultiplier: 0.94,
       fragments: splitFan(3, 24, 18, 28, 36),
     }),
-    fx: { trail: "#ffcf66", hitSprite: "boom-large" },
+    fx: { trail: "#ffcf66", hitSprite: "boom-large", shape: "meteor" },
   },
 
   // ── bigpo ─────────────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 44, radius: 60, craterMultiplier: 1.05, gravityScale: 1.06, windFactor: 0.72, speedMultiplier: 0.88 }),
-    fx: { trail: "#ff6a4b", hitSprite: "boom-large" },
+    fx: { trail: "#ff6a4b", hitSprite: "boom-large", shape: "bullet-round" },
   },
   bigpo_ss2: {
     name: "하우저",
@@ -116,7 +116,7 @@ export const WEAPONS = {
     delayMultiplier: 1.3,
     perMatchLimit: null,
     projectile: base({ damage: 58, radius: 76, craterMultiplier: 1.2, gravityScale: 1.10, windFactor: 0.68, speedMultiplier: 0.82 }),
-    fx: { trail: "#ff4422", hitSprite: "boom-xlarge" },
+    fx: { trail: "#ff4422", hitSprite: "boom-xlarge", shape: "bullet-round" },
   },
   bigpo_new: {
     name: "메테오",
@@ -124,7 +124,7 @@ export const WEAPONS = {
     delayMultiplier: 1.8,
     perMatchLimit: 2,
     projectile: base({ damage: 70, radius: 110, craterMultiplier: 1.4, gravityScale: 1.15, windFactor: 0.60, speedMultiplier: 0.76 }),
-    fx: { trail: "#ffaa00", hitSprite: "boom-meteor" },
+    fx: { trail: "#ffaa00", hitSprite: "boom-meteor", shape: "meteor" },
   },
 
   // ── slingshot ─────────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 32, radius: 40, craterMultiplier: 0.88, gravityScale: 0.92, windFactor: 1.6, speedMultiplier: 1.02 }),
-    fx: { trail: "#9cd8ff", hitSprite: "boom-small" },
+    fx: { trail: "#9cd8ff", hitSprite: "boom-small", shape: "comet" },
   },
   slingshot_ss2: {
     name: "곡사 바위",
@@ -142,7 +142,7 @@ export const WEAPONS = {
     delayMultiplier: 1.3,
     perMatchLimit: null,
     projectile: base({ damage: 46, radius: 54, craterMultiplier: 1.0, gravityScale: 0.90, windFactor: 1.5, speedMultiplier: 0.96 }),
-    fx: { trail: "#4ab8ff", hitSprite: "boom-mid" },
+    fx: { trail: "#4ab8ff", hitSprite: "boom-mid", shape: "comet" },
   },
   slingshot_new: {
     name: "강풍탄",
@@ -153,7 +153,7 @@ export const WEAPONS = {
       damage: 22, radius: 30, craterMultiplier: 0.80, windFactor: 1.6,
       fragments: fanN(3, 12, 22, 30),
     }),
-    fx: { trail: "#c8eeff", hitSprite: "boom-mid" },
+    fx: { trail: "#c8eeff", hitSprite: "boom-mid", shape: "comet" },
   },
 
   // ── dike ──────────────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ export const WEAPONS = {
       damage: 30, radius: 38, craterMultiplier: 0.75, gravityScale: 1.04, windFactor: 0.88, speedMultiplier: 0.94,
       burrow: { tunnelDepth: 200, tunnelWidth: 12, horizontalSpan: 0, terminalRadius: 44 },
     }),
-    fx: { trail: "#7ec46b", hitSprite: "boom-dirt" },
+    fx: { trail: "#7ec46b", hitSprite: "boom-dirt", shape: "drill" },
   },
   dike_ss2: {
     name: "드릴 벙커",
@@ -177,7 +177,7 @@ export const WEAPONS = {
       damage: 42, radius: 50, craterMultiplier: 0.85, gravityScale: 1.06, windFactor: 0.82, speedMultiplier: 0.90,
       burrow: { tunnelDepth: 260, tunnelWidth: 16, horizontalSpan: 0, terminalRadius: 55 },
     }),
-    fx: { trail: "#5a9e4a", hitSprite: "boom-dirt" },
+    fx: { trail: "#5a9e4a", hitSprite: "boom-dirt", shape: "drill" },
   },
   dike_new: {
     name: "지진 균열",
@@ -188,7 +188,7 @@ export const WEAPONS = {
       damage: 55, radius: 60, craterMultiplier: 0.90, gravityScale: 1.08, windFactor: 0.78, speedMultiplier: 0.88,
       burrow: { tunnelDepth: 240, tunnelWidth: 20, horizontalSpan: 260, terminalRadius: 68 },
     }),
-    fx: { trail: "#a0d870", hitSprite: "boom-dirt-large" },
+    fx: { trail: "#a0d870", hitSprite: "boom-dirt-large", shape: "drill" },
   },
 
   // ── turtle ────────────────────────────────────────────────────────────────
@@ -198,7 +198,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 28, radius: 40, craterMultiplier: 0.88, gravityScale: 1.02, windFactor: 0.86, speedMultiplier: 0.96, selfHeal: 8 }),
-    fx: { trail: "#8ed6c2", hitSprite: "boom-small" },
+    fx: { trail: "#8ed6c2", hitSprite: "boom-small", shape: "bullet-round" },
   },
   turtle_ss2: {
     name: "쉘 배쉬",
@@ -206,7 +206,7 @@ export const WEAPONS = {
     delayMultiplier: 1.3,
     perMatchLimit: null,
     projectile: base({ damage: 38, radius: 48, craterMultiplier: 0.92, gravityScale: 1.04, windFactor: 0.84, speedMultiplier: 0.92, selfHeal: 15 }),
-    fx: { trail: "#50c0a0", hitSprite: "boom-mid" },
+    fx: { trail: "#50c0a0", hitSprite: "boom-mid", shape: "bullet-round" },
   },
   turtle_new: {
     name: "수호자의 벽",
@@ -214,7 +214,7 @@ export const WEAPONS = {
     delayMultiplier: 1.8,
     perMatchLimit: 2,
     projectile: base({ damage: 48, radius: 55, craterMultiplier: 0.95, gravityScale: 1.05, windFactor: 0.80, speedMultiplier: 0.88, selfHeal: 40, raiseTerrainInFront: true }),
-    fx: { trail: "#98e8d0", hitSprite: "boom-large" },
+    fx: { trail: "#98e8d0", hitSprite: "boom-large", shape: "bullet-round" },
   },
 
   // ── mage ──────────────────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ export const WEAPONS = {
       damage: 24, radius: 34, craterMultiplier: 0.82, speedMultiplier: 1.0, gravityScale: 0.94, windFactor: 0.92,
       fragments: splitFan(3, 20, 20, 30, 32),
     }),
-    fx: { trail: "#c48cff", hitSprite: "boom-magic" },
+    fx: { trail: "#c48cff", hitSprite: "boom-magic", shape: "orb" },
   },
   mage_ss2: {
     name: "스타 폴",
@@ -238,7 +238,7 @@ export const WEAPONS = {
       damage: 22, radius: 30, craterMultiplier: 0.78, speedMultiplier: 1.02, gravityScale: 0.92, windFactor: 0.90,
       fragments: splitFan(5, 22, 18, 26, 50),
     }),
-    fx: { trail: "#aa66ff", hitSprite: "boom-magic" },
+    fx: { trail: "#aa66ff", hitSprite: "boom-magic", shape: "orb" },
   },
   mage_new: {
     name: "유성 폭격",
@@ -249,7 +249,7 @@ export const WEAPONS = {
       damage: 18, radius: 28, craterMultiplier: 0.70, speedMultiplier: 1.0,
       randomFall: { count: 9, spreadX: 280 },
     }),
-    fx: { trail: "#e0aaff", hitSprite: "boom-magic" },
+    fx: { trail: "#e0aaff", hitSprite: "boom-magic", shape: "swarm" },
   },
 
   // ── tricot ────────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ export const WEAPONS = {
       damage: 24, radius: 32, craterMultiplier: 0.84, speedMultiplier: 1.0,
       fragments: fanN(3, 10, 24, 32),
     }),
-    fx: { trail: "#ffd24b", hitSprite: "boom-mid" },
+    fx: { trail: "#ffd24b", hitSprite: "boom-mid", shape: "triforce" },
   },
   tricot_ss2: {
     name: "트리-버스트",
@@ -273,7 +273,7 @@ export const WEAPONS = {
       damage: 20, radius: 28, craterMultiplier: 0.80, speedMultiplier: 1.0,
       fragments: fanN(5, 9, 20, 28),
     }),
-    fx: { trail: "#f0b822", hitSprite: "boom-mid" },
+    fx: { trail: "#f0b822", hitSprite: "boom-mid", shape: "triforce" },
   },
   tricot_new: {
     name: "프리즘 샤워",
@@ -284,7 +284,7 @@ export const WEAPONS = {
       damage: 16, radius: 24, craterMultiplier: 0.72, speedMultiplier: 0.96,
       fragments: zigzagFan(9, 8),
     }),
-    fx: { trail: "#ffe880", hitSprite: "boom-mid" },
+    fx: { trail: "#ffe880", hitSprite: "boom-mid", shape: "triforce" },
   },
 
   // ── acannon ───────────────────────────────────────────────────────────────
@@ -294,7 +294,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 42, radius: 36, craterMultiplier: 0.82, speedMultiplier: 1.22, gravityScale: 0.94, windFactor: 0.4, pierce: 0 }),
-    fx: { trail: "#7ddcff", hitSprite: "boom-rail" },
+    fx: { trail: "#7ddcff", hitSprite: "boom-rail", shape: "rail" },
   },
   acannon_ss2: {
     name: "레일 스파이크",
@@ -302,7 +302,7 @@ export const WEAPONS = {
     delayMultiplier: 1.3,
     perMatchLimit: null,
     projectile: base({ damage: 52, radius: 38, craterMultiplier: 0.85, speedMultiplier: 1.30, gravityScale: 0.92, windFactor: 0.35, pierce: 1 }),
-    fx: { trail: "#44ccff", hitSprite: "boom-rail" },
+    fx: { trail: "#44ccff", hitSprite: "boom-rail", shape: "rail" },
   },
   acannon_new: {
     name: "레일 하이퍼",
@@ -310,7 +310,7 @@ export const WEAPONS = {
     delayMultiplier: 1.8,
     perMatchLimit: 2,
     projectile: base({ damage: 72, radius: 40, craterMultiplier: 0.88, speedMultiplier: 1.40, gravityScale: 0.90, windFactor: 0.28, pierce: 2 }),
-    fx: { trail: "#00eeff", hitSprite: "boom-rail" },
+    fx: { trail: "#00eeff", hitSprite: "boom-rail", shape: "rail" },
   },
 
   // ── lightning ─────────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ export const WEAPONS = {
       terrainPierceCells: 1,
       chain: { count: 0, range: 0, falloff: 0.8 },
     }),
-    fx: { trail: "#fff37a", hitSprite: "boom-electric" },
+    fx: { trail: "#fff37a", hitSprite: "boom-electric", shape: "zigzag" },
   },
   lightning_ss2: {
     name: "체인 볼트",
@@ -335,7 +335,7 @@ export const WEAPONS = {
       damage: 44, radius: 44, craterMultiplier: 0.88, speedMultiplier: 1.08, gravityScale: 0.94, windFactor: 0.78,
       chain: { count: 1, range: 220, falloff: 0.8 },
     }),
-    fx: { trail: "#ffee22", hitSprite: "boom-electric" },
+    fx: { trail: "#ffee22", hitSprite: "boom-electric", shape: "zigzag" },
   },
   lightning_new: {
     name: "천둥 강타",
@@ -347,7 +347,7 @@ export const WEAPONS = {
       chain: { count: 2, range: 280, falloff: 0.75 },
       verticalStrike: true,
     }),
-    fx: { trail: "#fffaaa", hitSprite: "boom-thunder" },
+    fx: { trail: "#fffaaa", hitSprite: "boom-thunder", shape: "zigzag" },
   },
 
   // ── ice ───────────────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ export const WEAPONS = {
     delayMultiplier: 1.0,
     perMatchLimit: null,
     projectile: base({ damage: 28, radius: 42, craterMultiplier: 0.86, gravityScale: 0.98, windFactor: 0.94, speedMultiplier: 1.0, status: { type: "frozen", delayBonus: 120 } }),
-    fx: { trail: "#b6efff", hitSprite: "boom-ice" },
+    fx: { trail: "#b6efff", hitSprite: "boom-ice", shape: "crystal" },
   },
   ice_ss2: {
     name: "서리 파편",
@@ -369,7 +369,7 @@ export const WEAPONS = {
       status: { type: "frozen", delayBonus: 200 },
       fragments: splitFan(3, 18, 16, 26, 30),
     }),
-    fx: { trail: "#80d8ff", hitSprite: "boom-ice" },
+    fx: { trail: "#80d8ff", hitSprite: "boom-ice", shape: "crystal" },
   },
   ice_new: {
     name: "블리자드",
@@ -382,6 +382,6 @@ export const WEAPONS = {
       aoeAllEnemies: true,
       fragments: fanN(1, 0, 22, 50),
     }),
-    fx: { trail: "#c8f4ff", hitSprite: "boom-blizzard" },
+    fx: { trail: "#c8f4ff", hitSprite: "boom-blizzard", shape: "crystal" },
   },
 };
