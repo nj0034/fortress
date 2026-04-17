@@ -28,6 +28,28 @@ import {
   normalizeDelays as normalizeTurnDelays,
   snapshot as snapshotTurnManager,
 } from "./src/sim/turn.js";
+import {
+  createTerrain,
+  isSolidAt,
+  surfaceYAt,
+  rasterizeHeightmap,
+  applyCrater,
+  unionRect,
+  colorForTheme,
+} from "./src/sim/terrain.js";
+import { circle, verticalTunnel, horizontalBurst } from "./src/sim/craterMasks.js";
+import {
+  isBridgeTerrainStyle as isBridgeStyle,
+  getBridgeProfile as getBridgeProfilePure,
+  getCanyonBridgeTopAt as getCanyonBridgeTopAtPure,
+  getSkyRuinsBridgeTopAt as getSkyRuinsBridgeTopAtPure,
+  getFrostMawBridgeTopAt as getFrostMawBridgeTopAtPure,
+  getFrostMawSupportTopAt as getFrostMawSupportTopAtPure,
+  generateBridgeFloor as generateBridgeFloorPure,
+  generateSupportTerrainState as generateSupportTerrainStatePure,
+  collectBridgeLayersAt,
+} from "./src/sim/bridge.js";
+import { drawTerrain as drawTerrainBitmap } from "./src/render/terrainRender.js";
 
 // Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
 const USE_SVG_TANKS = true;
@@ -115,6 +137,13 @@ const dom = {
 
 const ctx = dom.battleCanvas.getContext("2d");
 
+// Offscreen canvas for bitmap terrain (allocated once, sized to world + void)
+const terrainCanvas = document.createElement("canvas");
+terrainCanvas.width = WORLD_WIDTH;
+terrainCanvas.height = WORLD_HEIGHT + VOID_TERRAIN_DEPTH;
+const terrainCtx = terrainCanvas.getContext("2d");
+let pendingDirtyRect = null;
+
 const app = {
   selectedTheme: loadSetting("fortress_selected_theme", DEFAULT_THEME_ID),
   selectedTank: loadSetting("fortress_selected_tank", "ironclad"),
@@ -166,6 +195,7 @@ function createEmptyGame(themeId) {
     bridgeFloor: terrainState.bridgeFloor,
     supportTerrain: terrainState.supportTerrain,
     supportBridgeFloor: terrainState.supportBridgeFloor,
+    bitmap: terrainState.bitmap,
     players: [],
     projectiles: [],
     pendingShots: [],
@@ -306,6 +336,8 @@ function cycleSelectedTheme(step = 1) {
   app.game.bridgeFloor = terrainState.bridgeFloor;
   app.game.supportTerrain = terrainState.supportTerrain;
   app.game.supportBridgeFloor = terrainState.supportBridgeFloor;
+  app.game.bitmap = terrainState.bitmap;
+  pendingDirtyRect = null;
   persistProfile();
   setTicker(`${getTheme(app.selectedTheme).name} 맵으로 전장을 변경했습니다.`);
 
@@ -321,13 +353,23 @@ function cycleSelectedTheme(step = 1) {
 }
 
 function createTerrainState(themeId, seedText) {
+  const theme = getTheme(themeId);
   const terrain = generateTerrain(themeId, seedText);
   const supportState = generateSupportTerrainState(themeId, seedText);
+  const bridgeFloor = generateBridgeFloor(themeId, terrain);
+
+  // Build pixel bitmap terrain
+  const bitmapH = WORLD_HEIGHT + VOID_TERRAIN_DEPTH;
+  const bitmap = createTerrain({ width: WORLD_WIDTH, height: bitmapH, matchSeed: seedText, themeId });
+  const colorFn = (x, y) => colorForTheme(theme, x, y, bitmapH);
+  rasterizeHeightmap(bitmap, terrain, colorFn);
+
   return {
     terrain,
-    bridgeFloor: generateBridgeFloor(themeId, terrain),
+    bridgeFloor,
     supportTerrain: supportState.terrain,
     supportBridgeFloor: supportState.bridgeFloor,
+    bitmap,
   };
 }
 
@@ -692,6 +734,37 @@ function flattenTerrain(terrain, centerX, radius = 46) {
   }
 }
 
+/**
+ * Apply a crater to the bitmap terrain and sync the legacy heightmap.
+ * shape: "circle" | "verticalTunnel" | "horizontalBurst"
+ */
+function applyExplosionCrater(cx, cy, radius, shape = "circle") {
+  const bitmap = app.game.bitmap;
+  if (!bitmap) return;
+
+  let mask;
+  if (shape === "verticalTunnel") {
+    mask = verticalTunnel(Math.round(radius * 0.4), Math.round(radius * 2));
+  } else if (shape === "horizontalBurst") {
+    mask = horizontalBurst(Math.round(radius * 1.6), Math.round(radius * 0.55));
+  } else {
+    mask = circle(Math.round(radius));
+  }
+
+  const dirty = applyCrater(bitmap, { cx: Math.round(cx), cy: Math.round(cy), shape: mask });
+  if (!dirty) return;
+
+  // Sync legacy heightmap for the affected columns
+  const startX = clamp(dirty.x, 0, WORLD_WIDTH - 1);
+  const endX = clamp(dirty.x + dirty.w - 1, 0, WORLD_WIDTH - 1);
+  for (let x = startX; x <= endX; x++) {
+    const sy = surfaceYAt(bitmap, x);
+    app.game.terrain[x] = sy < bitmap.height ? sy : WORLD_HEIGHT - 1;
+  }
+
+  pendingDirtyRect = unionRect(pendingDirtyRect, dirty);
+}
+
 function getRawTerrainYAt(x, terrain = app.game.terrain) {
   return terrain[clamp(Math.round(x), 0, terrain.length - 1)];
 }
@@ -754,7 +827,24 @@ function getTerrainLayersAt(
 }
 
 function isTerrainCollisionAt(x, y, terrain = app.game.terrain, theme = currentTheme()) {
-  return getTerrainLayersAt(x, terrain, theme).some((layer) => y >= layer.top && y <= layer.bottom);
+  // Probe bitmap first for pixel-accurate solid collision
+  if (app.game.bitmap) {
+    const xi = Math.round(x);
+    const yi = Math.round(y);
+    if (isSolidAt(app.game.bitmap, xi, yi)) return true;
+  }
+  // Fall back to bridge layer collision (non-destructible spans)
+  const bridgeCtx = {
+    terrainStyle: theme.terrainStyle ?? "rolling",
+    bridgeThickness: theme.bridgeThickness,
+    terrain: terrain,
+    bridgeFloor: app.game.bridgeFloor,
+    supportTerrain: app.game.supportTerrain,
+    supportBridgeFloor: app.game.supportBridgeFloor,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+  };
+  return collectBridgeLayersAt(x, bridgeCtx).some((layer) => y >= layer.top && y <= layer.bottom);
 }
 
 function getTerrainYAt(x, terrain = app.game.terrain, referenceY = -Infinity) {
@@ -765,6 +855,40 @@ function getTerrainYAt(x, terrain = app.game.terrain, referenceY = -Infinity) {
 
 function getGroundYForPlayer(x, playerY = -Infinity, terrain = app.game.terrain) {
   const referenceY = Number.isFinite(playerY) ? playerY + 17 : -Infinity;
+
+  // Use pixel-accurate bitmap surface if available, with bridge-aware ordering
+  if (app.game.bitmap) {
+    const xi = Math.round(x);
+    const theme = currentTheme();
+    const bitmapSurface = surfaceYAt(app.game.bitmap, xi);
+
+    // Check bridge layers (non-destructible) — pick the one above referenceY
+    const bridgeCtx = {
+      terrainStyle: theme.terrainStyle ?? "rolling",
+      bridgeThickness: theme.bridgeThickness,
+      terrain,
+      bridgeFloor: app.game.bridgeFloor,
+      supportTerrain: app.game.supportTerrain,
+      supportBridgeFloor: app.game.supportBridgeFloor,
+      WORLD_WIDTH,
+      WORLD_HEIGHT,
+    };
+    const bridgeLayers = collectBridgeLayersAt(x, bridgeCtx);
+    const bridgeLayer = bridgeLayers.find((l) => referenceY <= l.bottom - 1) ?? null;
+    const bridgeSurface = bridgeLayer ? bridgeLayer.top : Infinity;
+
+    // Use whichever surface is closest above referenceY
+    let terrainY;
+    if (bridgeSurface < bitmapSurface && bridgeSurface <= referenceY + 40) {
+      terrainY = bridgeSurface;
+    } else {
+      terrainY = bitmapSurface;
+    }
+
+    if (terrainY >= WORLD_HEIGHT - 1) return null;
+    return terrainY - 17;
+  }
+
   const terrainY = getTerrainYAt(x, terrain, referenceY);
   if (terrainY >= WORLD_HEIGHT - 1) {
     return null;
@@ -1167,6 +1291,7 @@ function syncNicknameInput(rawValue) {
 
 function resetGameForLobby(themeId, seed) {
   const terrainState = createTerrainState(themeId, seed);
+  pendingDirtyRect = null;
   app.game = {
     phase: "lobby",
     theme: themeId,
@@ -1174,6 +1299,7 @@ function resetGameForLobby(themeId, seed) {
     bridgeFloor: terrainState.bridgeFloor,
     supportTerrain: terrainState.supportTerrain,
     supportBridgeFloor: terrainState.supportBridgeFloor,
+    bitmap: terrainState.bitmap,
     players: [],
     projectiles: [],
     pendingShots: [],
@@ -1276,6 +1402,7 @@ function layoutLobbyPlayers() {
   app.game.players.forEach((player, index) => {
     player.x = app.game.players.length === 1 ? WORLD_WIDTH * 0.24 : 110 + spacing * index;
     flattenTerrain(app.game.terrain, player.x, 52);
+    if (app.game.bitmap) applyExplosionCrater(player.x, surfaceYAt(app.game.bitmap, Math.round(player.x)), 52);
   });
   reflowPlayersOntoTerrain();
   app.game.players.forEach((player) => {
@@ -1294,6 +1421,7 @@ function layoutBattlePlayers() {
   candidates.forEach((player, index) => {
     player.x = candidates.length === 1 ? WORLD_WIDTH / 2 : 100 + spacing * index;
     flattenTerrain(app.game.terrain, player.x, 58);
+    if (app.game.bitmap) applyExplosionCrater(player.x, surfaceYAt(app.game.bitmap, Math.round(player.x)), 58);
   });
   reflowPlayersOntoTerrain();
   candidates.forEach((player) => {
@@ -2370,6 +2498,7 @@ function createHostRoom() {
   });
   hostPlayer.x = WORLD_WIDTH * 0.24;
   flattenTerrain(app.game.terrain, hostPlayer.x);
+  if (app.game.bitmap) applyExplosionCrater(hostPlayer.x, surfaceYAt(app.game.bitmap, Math.round(hostPlayer.x)), 46);
   hostPlayer.y = getTerrainYAt(hostPlayer.x) - 17;
   app.game.players = [hostPlayer];
 
@@ -2847,10 +2976,22 @@ function handleHostMessage(message) {
       rehydratedTurnManager.pendingStatuses = incomingGame.turnManager.pendingStatuses ?? {};
       rehydratedTurnManager.history = incomingGame.turnManager.history ?? [];
     }
+    const mergedTerrain = Array.isArray(incomingGame.terrain) ? incomingGame.terrain : app.game.terrain;
+    const mergedThemeId = incomingGame.theme ?? app.game.theme ?? DEFAULT_THEME_ID;
+    // Rebuild bitmap when terrain snapshot arrives
+    let mergedBitmap = app.game.bitmap;
+    if (Array.isArray(incomingGame.terrain)) {
+      const mergedTheme = getTheme(mergedThemeId);
+      const bitmapH = WORLD_HEIGHT + VOID_TERRAIN_DEPTH;
+      mergedBitmap = createTerrain({ width: WORLD_WIDTH, height: bitmapH, matchSeed: incomingGame.seed ?? "", themeId: mergedThemeId });
+      rasterizeHeightmap(mergedBitmap, mergedTerrain, (x, y) => colorForTheme(mergedTheme, x, y, bitmapH));
+      pendingDirtyRect = null;
+    }
     app.game = {
       ...incomingGame,
       turnManager: rehydratedTurnManager,
-      terrain: Array.isArray(incomingGame.terrain) ? incomingGame.terrain : app.game.terrain,
+      terrain: mergedTerrain,
+      bitmap: mergedBitmap,
       bridgeFloor:
         "bridgeFloor" in incomingGame
           ? Array.isArray(incomingGame.bridgeFloor)
@@ -4409,6 +4550,25 @@ function drawBattleBackdrop() {
 
 function drawTerrain() {
   const theme = currentTheme();
+  const bitmap = app.game.bitmap;
+
+  if (bitmap) {
+    // ── Bitmap path (Tasks 11 + 12) ────────────────────────────────────────
+    // 1. Blit bitmap to offscreen canvas (full or dirty-rect partial)
+    drawTerrainBitmap(terrainCtx, bitmap, pendingDirtyRect);
+    pendingDirtyRect = null;
+
+    // 2. Composite offscreen canvas onto main world ctx
+    ctx.drawImage(terrainCanvas, 0, 0);
+
+    // 3. Draw bridges on top (Task 12 — bridges are non-destructible overlay)
+    if (isBridgeTerrainStyle(theme.terrainStyle ?? "rolling")) {
+      drawBridgeTerrain(theme);
+    }
+    return;
+  }
+
+  // ── Legacy canvas path (fallback if bitmap not available) ──────────────
   if (isBridgeTerrainStyle(theme.terrainStyle ?? "rolling")) {
     drawBridgeTerrain(theme);
     return;
