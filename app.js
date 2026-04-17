@@ -4237,11 +4237,42 @@ function renderWeaponSlots(player, isCurrentTurn) {
 
   const btns = slotsEl.querySelectorAll(".weapon-slot");
   btns.forEach((btn) => {
-    const slot = slots.find((s) => s.id === btn.dataset.slot);
+    const slotId = btn.dataset.slot;
+    const slot = slots.find((s) => s.id === slotId);
     if (!slot) return;
     btn.disabled = slot.disabled;
     btn.classList.toggle("active", slot.active);
-    btn.title = slot.tooltip;
+
+    // Resolve weapon for this slot to get shape + tooltip text
+    const weaponId = tank?.weapons?.[slotId] ?? null;
+    const weapon = weaponId ? WEAPONS[weaponId] : null;
+    const shape = weapon?.fx?.shape ?? "bullet-round";
+    const color = weapon?.fx?.trail ?? "#ffffff";
+    const dmg = weapon?.projectile?.damage ?? "?";
+    const radius = weapon?.projectile?.radius ?? "?";
+    const delay = weapon?.delayMultiplier ?? "?";
+    const shotType = weapon?.shotType ?? "";
+    const tooltipText = weapon
+      ? `${weapon.name}\n${shotType} · 피해 ${dmg} · 반경 ${radius} · ×${delay}`
+      : slot.label;
+    btn.dataset.tooltip = tooltipText;
+
+    // Inject 24×24 shape canvas icon (once per button, then update)
+    let cvs = btn.querySelector(".weapon-slot-icon");
+    if (!cvs) {
+      // Clear existing text content (keep new-remaining span)
+      const newRemaining = btn.querySelector("#new-remaining");
+      btn.textContent = "";
+      if (newRemaining) btn.appendChild(newRemaining);
+      cvs = document.createElement("canvas");
+      cvs.className = "weapon-slot-icon";
+      cvs.width = 24;
+      cvs.height = 24;
+      btn.insertBefore(cvs, btn.firstChild);
+    }
+    const iconCtx = cvs.getContext("2d");
+    iconCtx.clearRect(0, 0, 24, 24);
+    drawProjectileShape(iconCtx, shape, { x: 12, y: 12, radius: 20, color, angle: 0 });
   });
 
   // Update NEW remaining badge

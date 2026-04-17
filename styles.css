@@ -1257,9 +1257,32 @@ input:focus {
 
 /* Weapon slots tabs (Plan F) */
 .weapon-slots { display:flex; gap:6px; align-items:center; }
-.weapon-slot { min-height:38px; padding:6px 10px; border:1px solid #3a3f48; border-radius:6px; background:#1a1d24; color:#e6e7ea; cursor:pointer; font-weight:600; font-size:13px; transition:border-color 0.12s,background 0.12s,color 0.12s; }
+.weapon-slot { position:relative; min-height:38px; padding:6px 10px; border:1px solid #3a3f48; border-radius:6px; background:#1a1d24; color:#e6e7ea; cursor:pointer; font-weight:600; font-size:13px; transition:border-color 0.12s,background 0.12s,color 0.12s; display:flex; align-items:center; gap:6px; }
 .weapon-slot:disabled { opacity:0.45; cursor:not-allowed; }
 .weapon-slot.active { border-color:#f2c94c; background:#3a2f12; color:#ffe58a; }
+.weapon-slot-icon { display:block; flex-shrink:0; image-rendering:pixelated; }
+/* Tooltip via data-tooltip */
+.weapon-slot[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(16,24,36,0.96);
+  color: #e8f0f8;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 11px;
+  border-radius: 8px;
+  white-space: pre-line;
+  pointer-events: none;
+  z-index: 100;
+  min-width: 160px;
+  text-align: left;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  line-height: 1.6;
+}
 #new-remaining { display:inline-flex; gap:2px; margin-left:4px; color:#8fd7ff; }
 .roster-new-badge { color:#8fd7ff; font-size:12px; margin-left:6px; }
 
