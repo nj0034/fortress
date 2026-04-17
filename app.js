@@ -13,7 +13,7 @@ import {
 import { TANK_TYPES } from "./src/data/tanks.js";
 import { THEMES } from "./src/data/maps.js";
 import { MODES } from "./src/data/modes.js";
-import { createMatch } from "./src/sim/match.js";
+import { createMatch, substituteIntoActiveRoster } from "./src/sim/match.js";
 import {
   loadTankTemplates,
   renderTankToCanvas,
@@ -1131,6 +1131,10 @@ function buildSnapshot(includeTerrain = true) {
       winnerId: app.game.winnerId,
       resolveTimer: app.game.resolveTimer,
       botTimer: app.game.botTimer,
+      // Plan H: match state + mode + pings
+      match: app.game.match ? { ...app.game.match } : null,
+      selectedMode: app.game.selectedMode ?? "ffa",
+      activePings: (app.game.activePings ?? []).map((p) => ({ ...p })),
     },
   };
 }
@@ -1520,6 +1524,45 @@ function endBattle(winner) {
     ? `${winner.name} 승리! 나가서 새 로비를 열면 다시 시작할 수 있습니다.`
     : "모든 탱크가 쓰러졌습니다.";
   setTicker(app.game.banner);
+  broadcastSnapshot(true);
+  markUiDirty();
+}
+
+/**
+ * Apply a tag-team substitution: swap deadId out, bring incomingId in.
+ * Called from host side when a player dies in tag-team mode.
+ * @param {string} deadId
+ * @param {string} incomingId
+ */
+function applyTagSwap(deadId, incomingId) {
+  if (!app.game.match || app.game.match.mode !== "tag-team") return;
+  const incoming = app.game.players.find((p) => p.id === incomingId);
+  if (!incoming) return;
+  // Restore full HP for incoming player
+  incoming.health = incoming.maxHealth;
+  incoming.alive = true;
+  incoming.fuel = TURN_FUEL;
+  // Update match rosters in-place
+  if (app.game.match.activeRoster) {
+    app.game.match.activeRoster = app.game.match.activeRoster.map((id) => (id === deadId ? incomingId : id));
+    app.game.match.reserveRoster = (app.game.match.reserveRoster ?? []).filter((id) => id !== incomingId);
+  }
+  // Add incoming to turnManager if not already there
+  if (app.game.turnManager) {
+    const tank = TANK_TYPES[incoming.tankType];
+    const entry = app.game.turnManager.tanks.find((t) => t.id === incomingId);
+    if (entry) {
+      entry.alive = true;
+    } else {
+      app.game.turnManager.tanks.push({
+        id: incomingId,
+        baseDelay: tank?.stats?.baseDelay ?? 720,
+        accumulatedDelay: 0,
+        alive: true,
+      });
+    }
+  }
+  setTicker(`${incoming.name} 교대 출전!`);
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -2934,6 +2977,31 @@ function setupIncomingConnection(connection) {
         addChatMessage(connection._playerId, name, text);
         broadcastChatMessage(connection._playerId, name, text);
       }
+    }
+    // Plan H: ping forwarded from client
+    if (message.type === "ping" && isBattleActive()) {
+      const pid = connection._playerId;
+      const now = performance.now();
+      const last = _pingThrottle[pid] ?? 0;
+      if (now - last >= PING_THROTTLE_MS) {
+        _pingThrottle[pid] = now;
+        const ping = {
+          id: randomId("ping"),
+          x: Number(message.x) || 0,
+          y: Number(message.y) || 0,
+          kind: message.kind === "target" ? "target" : "attention",
+          expiresAt: now + PING_LIFETIME_MS,
+          tankId: pid,
+        };
+        if (!app.game.activePings) app.game.activePings = [];
+        app.game.activePings.push(ping);
+        broadcastSnapshot(false);
+        markUiDirty();
+      }
+    }
+    // Plan H: tag-swap command from client
+    if (message.type === "tag-swap" && isBattleActive()) {
+      applyTagSwap(message.deadId, message.incomingId);
     }
   });
 
