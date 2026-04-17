@@ -1346,6 +1346,9 @@ function resetGameForLobby(themeId, seed) {
     resolveTimer: 0,
     botTimer: 0,
     matchSeed: null, // Plan G
+    activePings: [], // Plan H
+    selectedMode: "ffa", // Plan H
+    match: null, // Plan H
   };
 }
 
@@ -1602,6 +1605,7 @@ function startBattle() {
   app.game.pendingShots = [];
   app.game.pendingDrops = []; // Plan G: reset drops on battle start
   app.game.explosions = [];
+  app.game.activePings = []; // Plan H
   app.game.turnNumber = 1;
   app.game.matchSeed = `${app.room.id}-battle-${Date.now()}`; // Plan G: deterministic RNG seed
   app.game.currentTurnIndex = 0;
@@ -5634,6 +5638,102 @@ function drawRivetRow(startX, y, count, gap, color) {
 }
 
 
+// ---------------------------------------------------------------------------
+// Plan H: Map ping rendering + input
+// ---------------------------------------------------------------------------
+
+const PING_LIFETIME_MS = 4000;
+const PING_THROTTLE_MS = 500;
+const _pingThrottle = {}; // tankId → last ping timestamp
+
+/**
+ * Draw active pings onto the battle canvas.
+ * Prunes expired pings in-place.
+ */
+function drawPings(ctx2d, now) {
+  if (!app.game.activePings?.length) return;
+  app.game.activePings = app.game.activePings.filter((p) => now < p.expiresAt);
+  for (const ping of app.game.activePings) {
+    const age = now - (ping.expiresAt - PING_LIFETIME_MS);
+    const frac = Math.min(age / PING_LIFETIME_MS, 1);
+    const alpha = 1 - frac;
+    const ringRadius = 14 + frac * 20;
+
+    ctx2d.save();
+    ctx2d.globalAlpha = alpha;
+
+    if (ping.kind === "target") {
+      // Red crosshair
+      ctx2d.strokeStyle = "#e03030";
+      ctx2d.lineWidth = 2;
+      const sz = 10;
+      ctx2d.beginPath();
+      ctx2d.moveTo(ping.x - sz, ping.y); ctx2d.lineTo(ping.x + sz, ping.y);
+      ctx2d.moveTo(ping.x, ping.y - sz); ctx2d.lineTo(ping.x, ping.y + sz);
+      ctx2d.stroke();
+      ctx2d.beginPath();
+      ctx2d.arc(ping.x, ping.y, ringRadius, 0, Math.PI * 2);
+      ctx2d.strokeStyle = "#e03030";
+      ctx2d.lineWidth = 1.5;
+      ctx2d.stroke();
+    } else {
+      // Attention: yellow "!" + ring
+      ctx2d.fillStyle = "#e0c030";
+      ctx2d.font = "900 16px Nunito";
+      ctx2d.textAlign = "center";
+      ctx2d.textBaseline = "middle";
+      ctx2d.fillText("!", ping.x, ping.y - 2);
+      ctx2d.beginPath();
+      ctx2d.arc(ping.x, ping.y, ringRadius, 0, Math.PI * 2);
+      ctx2d.strokeStyle = "#e0c030";
+      ctx2d.lineWidth = 1.5;
+      ctx2d.stroke();
+    }
+    ctx2d.restore();
+  }
+}
+
+/**
+ * Send a map ping from the local player.
+ * Throttled to 1 per 500ms per tank.
+ * @param {number} worldX
+ * @param {number} worldY
+ * @param {"attention"|"target"} kind
+ */
+function sendPing(worldX, worldY, kind) {
+  const localPlayer = getLocalPlayer();
+  if (!localPlayer || !isBattleActive()) return;
+  const now = performance.now();
+  const last = _pingThrottle[localPlayer.id] ?? 0;
+  if (now - last < PING_THROTTLE_MS) return;
+  _pingThrottle[localPlayer.id] = now;
+
+  const ping = {
+    id: randomId("ping"),
+    x: worldX,
+    y: worldY,
+    kind,
+    expiresAt: now + PING_LIFETIME_MS,
+    tankId: localPlayer.id,
+  };
+  if (!app.game.activePings) app.game.activePings = [];
+  app.game.activePings.push(ping);
+
+  // Broadcast to peers
+  if (app.room) {
+    app.room.channel?.send(JSON.stringify({
+      t: "ping",
+      turn: app.game.turnNumber,
+      tankId: localPlayer.id,
+      x: Math.round(worldX),
+      y: Math.round(worldY),
+      kind,
+      seq: Date.now(),
+    }));
+  }
+  markUiDirty();
+}
+
 function drawPlayer(player) {
   const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
   const isCurrent = getCurrentPlayer()?.id === player.id && app.game.phase !== "game-over";
@@ -5724,6 +5824,9 @@ function drawBattle(now) {
       }
     }
   }
+
+  // Plan H: draw active pings
+  drawPings(ctx, now);
 
   // Plan G: draw pending item drops on battlefield
   if (app.game.pendingDrops?.length) {
@@ -5964,6 +6067,21 @@ function attachEvents() {
       const worldX = (canvasX - BATTLE_CAMERA_OFFSET_X) / BATTLE_CAMERA_SCALE;
       const worldY = (canvasY - BATTLE_CAMERA_OFFSET_Y) / BATTLE_CAMERA_SCALE;
       handleCanvasTeleportClick(worldX, worldY);
+    });
+
+    // Plan H: right-click → map ping
+    dom.battleCanvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      if (!isBattleActive()) return;
+      const rect = dom.battleCanvas.getBoundingClientRect();
+      const scaleX = dom.battleCanvas.width / rect.width;
+      const scaleY = dom.battleCanvas.height / rect.height;
+      const canvasX = (e.clientX - rect.left) * scaleX;
+      const canvasY = (e.clientY - rect.top) * scaleY;
+      const worldX = (canvasX - BATTLE_CAMERA_OFFSET_X) / BATTLE_CAMERA_SCALE;
+      const worldY = (canvasY - BATTLE_CAMERA_OFFSET_Y) / BATTLE_CAMERA_SCALE;
+      const kind = e.shiftKey ? "target" : "attention";
+      sendPing(worldX, worldY, kind);
     });
   }
 
