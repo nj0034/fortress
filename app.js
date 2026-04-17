@@ -1594,6 +1594,7 @@ function fireWeapon(player) {
   const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
   player.isCharging = false;
   player.lastFiredPower = Math.round(clamp(player.power, MIN_POWER, MAX_POWER));
+  player.recoilPhase = 0;
   resetHeldActions(player);
   app.game.pendingShots = tank.shots.map((shot, index) => ({
     ...cloneSimple(shot),
@@ -1615,6 +1616,7 @@ function applyDamage(player, amount) {
   }
 
   player.health = clamp(player.health - damage, 0, player.maxHealth);
+  player.tintFlash = 1;
 }
 
 function carveTerrain(centerX, centerY, radius) {
@@ -3761,6 +3763,37 @@ function renderBattleHud() {
   }
 }
 
+function renderTurnRail() {
+  const el = document.getElementById("turn-order-rail");
+  if (!el || !app.game.turnManager) return;
+  const mgr = app.game.turnManager;
+  // Project the next 4 turns deterministically without mutating mgr
+  const sim = {
+    tanks: mgr.tanks.map((t) => ({ ...t })),
+    pendingStatuses: {},
+    history: [],
+  };
+  const aliveSim = sim.tanks.filter((t) => t.alive);
+  const maxBar = Math.max(1, ...aliveSim.map((t) => t.accumulatedDelay));
+  const ordered = [];
+  for (let i = 0; i < 4; i++) {
+    const id = pickNextTurn(sim);
+    if (!id) break;
+    const tank = sim.tanks.find((t) => t.id === id);
+    ordered.push({ id, accumulatedDelay: tank.accumulatedDelay });
+    applyTurnAction(sim, { tankId: id, actionType: "ss1" }); // predictive
+  }
+  el.innerHTML = ordered.map((s, i) => {
+    const player = app.game.players.find((p) => p.id === s.id);
+    const name = player?.name ?? s.id;
+    const pct = Math.round((s.accumulatedDelay / maxBar) * 100);
+    return `<div class="turn-rail-slot${i === 0 ? " is-next" : ""}">
+      <span>${escapeHtml(name)}</span>
+      <div class="turn-rail-bar" style="width:${Math.max(6, pct)}%"></div>
+    </div>`;
+  }).join("");
+}
+
 function renderScreenState() {
   const showBattle = isBattleActive();
   dom.launcherScreen.classList.toggle("hidden", showBattle);
@@ -3785,6 +3818,7 @@ function renderUi(now = performance.now()) {
   try { renderTopBadges(); } catch (e) { console.error("renderTopBadges:", e); }
   try { renderPanelState(); } catch (e) { console.error("renderPanelState:", e); }
   try { renderBattleHud(); } catch (e) { console.error("renderBattleHud:", e); }
+  try { renderTurnRail(); } catch (e) { console.error("renderTurnRail:", e); }
   try { renderScreenState(); } catch (e) { console.error("renderScreenState:", e); }
 
   app.uiDirty = false;
