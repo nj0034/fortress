@@ -205,33 +205,40 @@ export function applyMaskAt(terrain, mask, mx, my) {
 // ─── Sandfall ─────────────────────────────────────────────────────────────────
 
 /**
- * Collapse floating earth in column x at and below fromY.
- * Algorithm: gather all solid pixels in the column from fromY upward (scanning upward
- * from the topmost cleared pixel), then compact them at the bottom.
+ * Collapse floating earth in column x.
+ * Scans the entire column from top (surface[x]) to collect all solid pixels,
+ * then compacts them at the bottom — no floating segments remain.
  * Integer-only — deterministic.
  *
  * @param {Terrain} terrain
  * @param {number} x      integer column
- * @param {number} fromY  topmost row to check (typically the mask top)
+ * @param {number} fromY  hint: start scanning from this row (may be above surface)
  */
 export function sandfallColumn(terrain, x, fromY) {
-  const { width, height, solid, colorBuf } = terrain;
+  const { width, height, solid, colorBuf, surface } = terrain;
 
-  // Collect (y, rgba) of all solid pixels in [fromY .. height-1]
+  // Start from the topmost solid pixel (or fromY if higher) to catch floaters
+  // that live above the cleared region.
+  const scanStart = Math.max(0, Math.min(surface[x], Math.max(0, fromY)));
+
+  // Collect (rgba) of all solid pixels in [scanStart .. height-1] in top-to-bottom order
   const pixels = [];
-  const clampedFrom = Math.max(0, Math.min(height - 1, fromY));
-  for (let y = clampedFrom; y < height; y++) {
+  for (let y = scanStart; y < height; y++) {
     const idx = y * width + x;
     if (solid[idx] === 1) {
       const ci = idx * 4;
-      pixels.push([y, colorBuf[ci], colorBuf[ci + 1], colorBuf[ci + 2], colorBuf[ci + 3]]);
+      pixels.push([colorBuf[ci], colorBuf[ci + 1], colorBuf[ci + 2], colorBuf[ci + 3]]);
     }
   }
 
-  if (pixels.length === 0) return;
+  if (pixels.length === 0) {
+    // Nothing to compact; update surface if scanStart changed anything
+    recomputeSurfaceColumn(terrain, x);
+    return;
+  }
 
-  // Clear the entire range first
-  for (let y = clampedFrom; y < height; y++) {
+  // Clear the entire range [scanStart .. height-1]
+  for (let y = scanStart; y < height; y++) {
     const idx = y * width + x;
     solid[idx] = 0;
     const ci = idx * 4;
@@ -241,18 +248,18 @@ export function sandfallColumn(terrain, x, fromY) {
     colorBuf[ci + 3] = 0;
   }
 
-  // Paint them back compacted at the bottom of the range
+  // Paint pixels back compacted at the bottom — preserving top-to-bottom colour order
   const bottom = height - 1;
-  for (let i = pixels.length - 1; i >= 0; i--) {
+  for (let i = 0; i < pixels.length; i++) {
     const destY = bottom - (pixels.length - 1 - i);
-    if (destY < clampedFrom) break; // shouldn't happen but guard
+    if (destY < scanStart) break; // guard (shouldn't trigger)
     const idx = destY * width + x;
     solid[idx] = 1;
     const ci = idx * 4;
-    colorBuf[ci] = pixels[i][1];
-    colorBuf[ci + 1] = pixels[i][2];
-    colorBuf[ci + 2] = pixels[i][3];
-    colorBuf[ci + 3] = pixels[i][4];
+    colorBuf[ci] = pixels[i][0];
+    colorBuf[ci + 1] = pixels[i][1];
+    colorBuf[ci + 2] = pixels[i][2];
+    colorBuf[ci + 3] = pixels[i][3];
   }
 
   recomputeSurfaceColumn(terrain, x);
