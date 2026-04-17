@@ -58,6 +58,7 @@ import {
 } from "./src/sim/bridge.js";
 import { drawTerrain as drawTerrainBitmap } from "./src/render/terrainRender.js";
 import { buildTurnOrderView } from "./src/ui/turnOrder.js";
+import { buildWeaponSlotsView, selectedWeaponReducer } from "./src/ui/weaponSlots.js";
 
 // Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
 const USE_SVG_TANKS = true;
@@ -3952,28 +3953,46 @@ function renderBattleHud() {
   dom.powerPreviousValue.textContent = `이전 ${Math.round(previousPower ?? 0)}`;
   dom.battleBanner.textContent = app.game.banner;
 
-  // Weapon slot pill: SS1 | SS2 | NEW(n)
-  const weaponPillEl = document.getElementById("weapon-slot-pill");
-  if (weaponPillEl && localPlayer) {
-    const slot = localPlayer.selectedWeapon ?? "ss1";
-    const newLeft = localPlayer.newUsesRemaining ?? 2;
-    const tank = TANK_TYPES[localPlayer.tankType] ?? TANK_TYPES.armor;
-    const ss1Name = WEAPONS[tank.weapons?.ss1]?.name ?? "SS1";
-    const ss2Name = WEAPONS[tank.weapons?.ss2]?.name ?? "SS2";
-    const newName = WEAPONS[tank.weapons?.new]?.name ?? "NEW";
-    weaponPillEl.innerHTML = [
-      { key: "ss1", label: `1 ${ss1Name}` },
-      { key: "ss2", label: `2 ${ss2Name}` },
-      { key: "new", label: `3 ${newName}(${newLeft})` },
-    ]
-      .map(({ key, label }) =>
-        `<span class="weapon-slot-btn${key === slot ? " active" : ""}${key === "new" && newLeft <= 0 ? " disabled" : ""}">${label}</span>`,
-      )
-      .join(" | ");
-  }
+  // Weapon slot tabs (Plan F)
+  renderWeaponSlots(localPlayer, canLocalPlayerAct());
 
   if (!canLocalPlayerAct()) {
     clearLocalHeldInputs();
+  }
+}
+
+function renderWeaponSlots(player, isCurrentTurn) {
+  const slotsEl = document.getElementById("weapon-slots");
+  if (!slotsEl) return;
+
+  const tank = player ? (TANK_TYPES[player.tankType] ?? TANK_TYPES.armor) : null;
+  const playerArg = player
+    ? {
+        tankType: player.tankType,
+        tankTypeDef: tank,
+        weapons: WEAPONS,
+        selectedWeapon: player.selectedWeapon ?? "ss1",
+        newUsesRemaining: player.newUsesRemaining ?? 2,
+        isCurrentTurn: Boolean(isCurrentTurn),
+      }
+    : { tankType: "armor", tankTypeDef: TANK_TYPES.armor, weapons: WEAPONS, selectedWeapon: "ss1", newUsesRemaining: 0, isCurrentTurn: false };
+
+  const { slots } = buildWeaponSlotsView(playerArg);
+
+  const btns = slotsEl.querySelectorAll(".weapon-slot");
+  btns.forEach((btn) => {
+    const slot = slots.find((s) => s.id === btn.dataset.slot);
+    if (!slot) return;
+    btn.disabled = slot.disabled;
+    btn.classList.toggle("active", slot.active);
+    btn.title = slot.tooltip;
+  });
+
+  // Update NEW remaining badge
+  const newRemainingEl = document.getElementById("new-remaining");
+  if (newRemainingEl) {
+    const newLeft = player?.newUsesRemaining ?? 0;
+    newRemainingEl.textContent = "❄".repeat(Math.max(0, newLeft));
   }
 }
 
