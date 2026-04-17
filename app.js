@@ -934,13 +934,24 @@ function getGroundYForPlayer(x, playerY = -Infinity, terrain = app.game.terrain)
       WORLD_HEIGHT,
     };
     const bridgeLayers = collectBridgeLayersAt(x, bridgeCtx);
-    const bridgeLayer = bridgeLayers.find((l) => referenceY <= l.bottom - 1) ?? null;
-    const bridgeSurface = bridgeLayer ? bridgeLayer.top : Infinity;
+    const isInitialPlacement = !Number.isFinite(playerY);
+    const candidateBridge = isInitialPlacement
+      ? bridgeLayers.reduce((best, l) => (best == null || l.top < best.top ? l : best), null)
+      : bridgeLayers.find((l) => referenceY <= l.bottom - 1) ?? null;
+    const bridgeSurface = candidateBridge ? candidateBridge.top : Infinity;
 
-    // Use whichever surface is closest above referenceY
+    // Pick whichever surface is most appropriate
     let terrainY;
-    if (bridgeSurface < bitmapSurface && bridgeSurface <= referenceY + 40) {
+    if (bitmapSurface >= WORLD_HEIGHT - 1) {
+      // No destructible ground in this column — fall back to bridge if present
+      if (!Number.isFinite(bridgeSurface)) return null;
       terrainY = bridgeSurface;
+    } else if (bridgeSurface < bitmapSurface) {
+      if (isInitialPlacement || bridgeSurface <= referenceY + 40) {
+        terrainY = bridgeSurface;
+      } else {
+        terrainY = bitmapSurface;
+      }
     } else {
       terrainY = bitmapSurface;
     }
