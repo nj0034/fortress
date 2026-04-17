@@ -1262,3 +1262,73 @@ input:focus {
 .weapon-slot.active { border-color:#f2c94c; background:#3a2f12; color:#ffe58a; }
 #new-remaining { display:inline-flex; gap:2px; margin-left:4px; color:#8fd7ff; }
 .roster-new-badge { color:#8fd7ff; font-size:12px; margin-left:6px; }
+
+/* ─── Inventory strip (Plan G) ─────────────────────────────────────────────── */
+.inventory-strip {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.inventory-strip .inv-slot {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  background: rgba(10, 10, 30, 0.5);
+  border: 1.5px solid rgba(80, 80, 120, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: border-color 0.12s, background 0.12s;
+  overflow: hidden;
+}
+.inventory-strip .inv-slot:not(.slot-empty) {
+  background: rgba(20, 20, 50, 0.9);
+  border-color: rgba(180, 180, 255, 0.8);
+  cursor: pointer;
+}
+.inventory-strip .inv-slot:not(.slot-empty):hover {
+  border-color: rgba(255, 255, 180, 0.9);
+  background: rgba(30, 30, 70, 0.95);
+  animation: inv-slot-pulse 0.6s ease-in-out;
+}
+.inventory-strip .slot-empty {
+  opacity: 0.45;
+}
+.inventory-strip .inv-slot-key {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(200, 200, 200, 0.8);
+  line-height: 1;
+  pointer-events: none;
+}
+.inventory-strip .inv-slot-icon {
+  font-size: 22px;
+  line-height: 1;
+  margin-top: 6px;
+}
+.inventory-strip .inv-slot-label {
+  font-size: 8px;
+  color: rgba(220, 220, 255, 0.85);
+  text-align: center;
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+  line-height: 1;
+}
+@keyframes inv-slot-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 180, 0.4); }
+  50%  { box-shadow: 0 0 0 4px rgba(255, 255, 180, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 180, 0); }
+}
+/* Responsive: stack below weapon-slots on narrow screens */
+@media (max-width: 640px) {
+  .inventory-strip { order: 3; flex-basis: 100%; justify-content: center; margin-top: 4px; }
+}
