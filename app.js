@@ -6342,6 +6342,7 @@ function attachEvents() {
     }
     input.addEventListener("keydown", (e) => {
       e.stopPropagation();
+      if (e.isComposing || e.keyCode === 229) return; // IME safe guard
       if (e.key === "Enter") {
         e.preventDefault();
         sendChatMessage(input.value);
