@@ -146,6 +146,17 @@
                 <button id="leave-room-btn" class="soft-btn hidden">나가기</button>
               </div>
 
+              <div class="field" id="mode-select-wrap">
+                <span>게임 모드</span>
+                <select id="mode-select" class="mode-select">
+                  <option value="ffa">Free-For-All</option>
+                  <option value="team-2v2">Team 2v2</option>
+                  <option value="tag-team">Tag Team</option>
+                  <option value="survival">Survival</option>
+                </select>
+                <p id="mode-description" class="mode-description">모든 플레이어가 서로 싸우는 무한 전투</p>
+              </div>
+
               <p id="panel-note" class="panel-note">
                 초대 링크를 연 참가자는 승인 링크를 다시 보낼 필요 없이 바로 로비에 연결됩니다.
               </p>
@@ -164,6 +175,7 @@
           <div class="battle-top-left">
             <span id="phase-pill" class="battle-pill">전투 준비</span>
             <strong id="turn-label">TURN -</strong>
+            <span id="mode-badge" class="mode-badge hidden"></span>
           </div>
           <div class="battle-top-right">
             <button id="battle-leave-btn" class="battle-mini-btn">나가기</button>

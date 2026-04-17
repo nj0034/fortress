@@ -12,6 +12,8 @@ import {
 } from "./src/config.js";
 import { TANK_TYPES } from "./src/data/tanks.js";
 import { THEMES } from "./src/data/maps.js";
+import { MODES } from "./src/data/modes.js";
+import { createMatch } from "./src/sim/match.js";
 import {
   loadTankTemplates,
   renderTankToCanvas,
@@ -150,6 +152,9 @@ const dom = {
   battleBanner: document.querySelector("#battle-banner"),
   battleRoster: document.querySelector("#battle-roster"),
   battleCanvas: document.querySelector("#battle-canvas"),
+  modeSelect: document.querySelector("#mode-select"),
+  modeDescription: document.querySelector("#mode-description"),
+  modeBadge: document.querySelector("#mode-badge"),
 };
 
 const ctx = dom.battleCanvas.getContext("2d");
@@ -341,6 +346,12 @@ function getTheme(themeId) {
 
 function isBridgeTerrainStyle(terrainStyle) {
   return terrainStyle === "bridge" || terrainStyle === "serpentbridge" || terrainStyle === "icebridge";
+}
+
+function updateModeDescription(modeId) {
+  if (!dom.modeDescription) return;
+  const mode = MODES[modeId];
+  dom.modeDescription.textContent = mode ? mode.description : "";
 }
 
 function cycleSelectedTheme(step = 1) {
@@ -5865,6 +5876,16 @@ function attachEvents() {
   dom.copyInviteBtn.addEventListener("click", copyInviteLink);
   dom.mapPrevBtn.addEventListener("click", () => cycleSelectedTheme(-1));
   dom.mapNextBtn.addEventListener("click", () => cycleSelectedTheme(1));
+  if (dom.modeSelect) {
+    dom.modeSelect.addEventListener("change", () => {
+      const modeId = dom.modeSelect.value;
+      updateModeDescription(modeId);
+      if (app.localRole === "host" && app.game) {
+        app.game.selectedMode = modeId;
+        broadcastSnapshot(true);
+      }
+    });
+  }
   dom.addBotBtn.addEventListener("click", addBot);
   dom.leaveRoomBtn.addEventListener("click", () => leaveRoom(true));
   dom.battleLeaveBtn.addEventListener("click", () => leaveRoom(true));
