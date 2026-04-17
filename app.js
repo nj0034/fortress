@@ -1,3 +1,5 @@
+import { clamp, lerp, degToRad, wrapAngleRadians, distance } from "./src/util/math.js";
+
 const PEER_CONFIG = {
   host: "0.peerjs.com",
   port: 443,
@@ -370,6 +372,12 @@ const dom = {
   fuelLabel: document.querySelector("#fuel-label"),
   fuelTrack: document.querySelector("#fuel-track"),
   fuelFill: document.querySelector("#fuel-fill"),
+  chatMessages: document.querySelector("#chat-messages"),
+  chatInput: document.querySelector("#chat-input"),
+  chatSendBtn: document.querySelector("#chat-send-btn"),
+  battleChatMessages: document.querySelector("#battle-chat-messages"),
+  battleChatInput: document.querySelector("#battle-chat-input"),
+  battleChatSendBtn: document.querySelector("#battle-chat-send-btn"),
   powerManualMarker: document.querySelector("#power-manual-marker"),
   powerManualValue: document.querySelector("#power-manual-value"),
   powerPreviousMarker: document.querySelector("#power-previous-marker"),
@@ -401,6 +409,7 @@ const app = {
     manualPowerMarker: null,
   },
   uiDirty: true,
+  chatLog: [],
   lastUiRender: 0,
   lastSnapshotAt: 0,
 };
@@ -491,32 +500,6 @@ function randomId(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-function degToRad(value) {
-  return (value * Math.PI) / 180;
-}
-
-function wrapAngleRadians(value) {
-  let angle = value;
-  while (angle <= -Math.PI) {
-    angle += Math.PI * 2;
-  }
-  while (angle > Math.PI) {
-    angle -= Math.PI * 2;
-  }
-  return angle;
-}
-
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
 
 function hashString(text) {
   let hash = 2166136261;
@@ -534,6 +517,12 @@ function mulberry32(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function escapeHtml(text) {
+  const d = document.createElement("div");
+  d.textContent = text;
+  return d.innerHTML;
 }
 
 function normalizeIncoming(data) {
@@ -1289,6 +1278,54 @@ function buildSnapshot(includeTerrain = true) {
   };
 }
 
+function sendChatMessage(text) {
+  const trimmed = text.trim().slice(0, 100);
+  if (!trimmed || !app.room) {
+    return;
+  }
+  const playerName = app.draftName || "???";
+  if (app.localRole === "host") {
+    addChatMessage(app.localPlayerId, playerName, trimmed);
+    broadcastChatMessage(app.localPlayerId, playerName, trimmed);
+  } else if (app.localRole === "client" && app.network.clientConnection?.open) {
+    app.network.clientConnection.send({ type: "chat", text: trimmed });
+  }
+}
+
+function broadcastChatMessage(playerId, playerName, text) {
+  const packet = { type: "chat", playerId, playerName, text };
+  app.network.hostConnections.forEach((conn) => {
+    if (conn?.open) {
+      conn.send(packet);
+    }
+  });
+}
+
+function addChatMessage(playerId, playerName, text) {
+  app.chatLog.push({ playerId, playerName, text, time: Date.now() });
+  if (app.chatLog.length > 50) {
+    app.chatLog.shift();
+  }
+  renderChat();
+}
+
+function renderChat() {
+  const html = app.chatLog
+    .map((m) => {
+      const isMe = m.playerId === app.localPlayerId;
+      return `<div class="chat-bubble ${isMe ? "chat-mine" : ""}"><strong>${escapeHtml(m.playerName)}</strong> ${escapeHtml(m.text)}</div>`;
+    })
+    .join("");
+  if (dom.chatMessages) {
+    dom.chatMessages.innerHTML = html;
+    dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
+  }
+  if (dom.battleChatMessages) {
+    dom.battleChatMessages.innerHTML = html;
+    dom.battleChatMessages.scrollTop = dom.battleChatMessages.scrollHeight;
+  }
+}
+
 function broadcastSnapshot(force = false) {
   if (app.localRole !== "host") {
     return;
@@ -1500,6 +1537,7 @@ function destroyNetworking() {
 function leaveRoom(clearInvite = true) {
   destroyNetworking();
   app.localRole = null;
+  app.chatLog = [];
   app.localPlayerId = null;
   app.room = null;
   app.input.manualPowerMarker = null;
@@ -1833,7 +1871,7 @@ function spawnProjectile(player, shot) {
 }
 
 function fireWeapon(player) {
-  const tank = TANK_TYPES[player.tankType];
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
   player.isCharging = false;
   player.lastFiredPower = Math.round(clamp(player.power, MIN_POWER, MAX_POWER));
   resetHeldActions(player);
@@ -1847,7 +1885,7 @@ function fireWeapon(player) {
 }
 
 function applyDamage(player, amount) {
-  const tank = TANK_TYPES[player.tankType];
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
   let damage = amount * tank.damageTakenMultiplier;
 
   if (player.shield > 0) {
@@ -2037,7 +2075,7 @@ function applyStepAction(player, actionType) {
       return false;
     }
     const direction = actionType === "move-left" ? -1 : 1;
-    const tank = TANK_TYPES[player.tankType];
+    const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
     player.x = clamp(player.x + direction * MOVE_STEP * tank.mobility, 32, WORLD_WIDTH - 32);
     const groundY = getGroundYForPlayer(player.x, player.y);
     if (groundY !== null) {
@@ -2365,7 +2403,7 @@ function updateProjectiles(dtMs) {
 
 function findBotShot(player, target) {
   const wind = app.game.wind;
-  const referenceShot = TANK_TYPES[player.tankType].shots[0];
+  const referenceShot = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).shots[0];
   const aimSide = getAimSide(player);
   const angleStart = aimSide === "right" ? 18 : 90;
   const angleEnd = aimSide === "right" ? 90 : 162;
@@ -2802,6 +2840,15 @@ function setupIncomingConnection(connection) {
     if (message.type === "tank-change" && TANK_TYPES[message.tankId]) {
       processTankChangeRequest(connection._playerId, message.tankId);
     }
+    if (message.type === "chat" && typeof message.text === "string") {
+      const player = app.game.players.find((p) => p.id === connection._playerId);
+      const name = player?.name ?? "???";
+      const text = message.text.trim().slice(0, 100);
+      if (text) {
+        addChatMessage(connection._playerId, name, text);
+        broadcastChatMessage(connection._playerId, name, text);
+      }
+    }
   });
 
   const handleClose = () => {
@@ -3036,6 +3083,11 @@ function handleHostMessage(message) {
     updateStatus("입장 실패", "sand");
     setTicker(map[message.reason] ?? "로비 입장에 실패했습니다.");
     markUiDirty();
+    return;
+  }
+
+  if (message.type === "chat") {
+    addChatMessage(message.playerId, message.playerName, message.text);
     return;
   }
 
@@ -3962,14 +4014,14 @@ function renderUi(now = performance.now()) {
     }
   }
 
-  renderTankStrip();
-  renderShowcase();
-  renderPlayers();
-  renderSummary();
-  renderTopBadges();
-  renderPanelState();
-  renderBattleHud();
-  renderScreenState();
+  try { renderTankStrip(); } catch (e) { console.error("renderTankStrip:", e); }
+  try { renderShowcase(); } catch (e) { console.error("renderShowcase:", e); }
+  try { renderPlayers(); } catch (e) { console.error("renderPlayers:", e); }
+  try { renderSummary(); } catch (e) { console.error("renderSummary:", e); }
+  try { renderTopBadges(); } catch (e) { console.error("renderTopBadges:", e); }
+  try { renderPanelState(); } catch (e) { console.error("renderPanelState:", e); }
+  try { renderBattleHud(); } catch (e) { console.error("renderBattleHud:", e); }
+  try { renderScreenState(); } catch (e) { console.error("renderScreenState:", e); }
 
   app.uiDirty = false;
   app.lastUiRender = now;
@@ -5281,7 +5333,7 @@ function drawProjectile(projectile) {
 }
 
 function getPreviewShot(player) {
-  const shots = TANK_TYPES[player.tankType].shots;
+  const shots = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).shots;
   if (!shots?.length) {
     return null;
   }
@@ -5649,7 +5701,7 @@ function drawTankTurretDetails(tankId, player, bodyColor) {
 }
 
 function drawPlayer(player) {
-  const tank = TANK_TYPES[player.tankType];
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
   const isCurrent = getCurrentPlayer()?.id === player.id && app.game.phase !== "game-over";
   const bodyColor = player.alive ? tank.color : "#97a4b3";
   const trimColor = player.alive ? colorWithAlpha("#ffffff", 0.66) : colorWithAlpha("#d4dae2", 0.55);
@@ -5686,7 +5738,7 @@ function drawPlayer(player) {
   ctx.fillStyle = player.alive ? "#68e7c3" : "#96a5b4";
   ctx.fillRect(player.x - 30, player.y - 28, (player.health / player.maxHealth) * 60, 8);
   if (player.shield > 0) {
-    const maxShield = TANK_TYPES[player.tankType].maxShield ?? 26;
+    const maxShield = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).maxShield ?? 26;
     ctx.fillStyle = "rgba(120,216,255,0.92)";
     ctx.fillRect(player.x - 30, player.y - 18, (player.shield / maxShield) * 60, 4);
   }
@@ -5915,6 +5967,33 @@ function attachEvents() {
       }
     });
   }
+
+  [dom.chatInput, dom.battleChatInput].forEach((input) => {
+    if (!input) {
+      return;
+    }
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendChatMessage(input.value);
+        input.value = "";
+      }
+    });
+    input.addEventListener("keyup", (e) => e.stopPropagation());
+  });
+  [dom.chatSendBtn, dom.battleChatSendBtn].forEach((btn) => {
+    if (!btn) {
+      return;
+    }
+    btn.addEventListener("click", () => {
+      const input = btn.id.includes("battle") ? dom.battleChatInput : dom.chatInput;
+      if (input) {
+        sendChatMessage(input.value);
+        input.value = "";
+      }
+    });
+  });
 }
 
 function init() {
