@@ -1,10 +1,13 @@
 {
+  "type": "module",
   "name": "fortress-relay",
   "private": true,
   "version": "1.0.0",
   "description": "Browser-only Fortress/Worms style artillery game with invite links and WebRTC P2P rooms",
   "scripts": {
     "start": "python3 -m http.server 3002",
-    "check": "node --check app.js"
+    "check": "node --check app.js",
+    "test": "node --test test/**/*.test.js",
+    "test:watch": "node --test --watch test/**/*.test.js"
   }
 }
