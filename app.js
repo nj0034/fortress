@@ -57,6 +57,7 @@ import {
   collectBridgeLayersAt,
 } from "./src/sim/bridge.js";
 import { drawTerrain as drawTerrainBitmap } from "./src/render/terrainRender.js";
+import { buildTurnOrderView } from "./src/ui/turnOrder.js";
 
 // Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
 const USE_SVG_TANKS = true;
@@ -3980,31 +3981,63 @@ function renderTurnRail() {
   const el = document.getElementById("turn-order-rail");
   if (!el || !app.game.turnManager) return;
   const mgr = app.game.turnManager;
-  // Project the next 4 turns deterministically without mutating mgr
-  const sim = {
-    tanks: mgr.tanks.map((t) => ({ ...t })),
+
+  // Build view model from current manager state (no mutation)
+  const snap = {
+    tanks: mgr.tanks.map((t) => {
+      const player = app.game.players.find((p) => p.id === t.id);
+      return {
+        id: t.id,
+        name: player?.name ?? t.id,
+        tankTypeId: player?.tankType ?? "armor",
+        baseDelay: t.baseDelay,
+        accumulatedDelay: t.accumulatedDelay,
+        alive: t.alive,
+      };
+    }),
     pendingStatuses: {},
     history: [],
   };
-  const aliveSim = sim.tanks.filter((t) => t.alive);
-  const maxBar = Math.max(1, ...aliveSim.map((t) => t.accumulatedDelay));
-  const ordered = [];
-  for (let i = 0; i < 4; i++) {
-    const id = pickNextTurn(sim);
-    if (!id) break;
-    const tank = sim.tanks.find((t) => t.id === id);
-    ordered.push({ id, accumulatedDelay: tank.accumulatedDelay });
-    applyTurnAction(sim, { tankId: id, actionType: "ss1" }); // predictive
+  const entries = buildTurnOrderView(snap, 4);
+
+  el.innerHTML = "";
+  for (const entry of entries) {
+    const card = document.createElement("div");
+    card.className = "turn-order-card" + (entry.isActive ? " active" : "");
+
+    // 40×28 mini tank canvas
+    const cvs = document.createElement("canvas");
+    cvs.width = 40;
+    cvs.height = 28;
+    const player = app.game.players.find((p) => p.id === entry.tankId);
+    if (player) {
+      try {
+        renderTankToCanvas(cvs.getContext("2d"), {
+          tankType: entry.tankTypeId,
+          teamColor: player.teamColor ?? "#4ea1ff",
+          facing: 1,
+          width: 40,
+          height: 28,
+        });
+      } catch (_) { /* ignore render errors for unknown tank types */ }
+    }
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "turn-order-name";
+    nameEl.textContent = entry.name;
+
+    const delayBar = document.createElement("div");
+    delayBar.className = "turn-order-delay";
+    const fill = document.createElement("div");
+    fill.className = "turn-order-delay-fill";
+    fill.style.width = `${entry.delayBarPct}%`;
+    delayBar.appendChild(fill);
+
+    card.appendChild(cvs);
+    card.appendChild(nameEl);
+    card.appendChild(delayBar);
+    el.appendChild(card);
   }
-  el.innerHTML = ordered.map((s, i) => {
-    const player = app.game.players.find((p) => p.id === s.id);
-    const name = player?.name ?? s.id;
-    const pct = Math.round((s.accumulatedDelay / maxBar) * 100);
-    return `<div class="turn-rail-slot${i === 0 ? " is-next" : ""}">
-      <span>${escapeHtml(name)}</span>
-      <div class="turn-rail-bar" style="width:${Math.max(6, pct)}%"></div>
-    </div>`;
-  }).join("");
 }
 
 function renderScreenState() {
