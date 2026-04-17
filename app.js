@@ -1,5 +1,14 @@
 import { clamp, lerp, degToRad, wrapAngleRadians, distance } from "./src/util/math.js";
 import { hashString, escapeHtml, randomId } from "./src/util/text.js";
+import {
+  VIEW_WIDTH, VIEW_HEIGHT, FRAME_STEP, SNAPSHOT_INTERVAL, TURN_FUEL, MOVE_COST,
+  MOVE_STEP, ANGLE_STEP, MIN_POWER, MAX_POWER, CHARGE_RATE, HOLD_REPEAT_INTERVAL,
+  LAUNCH_SPEED_DIVISOR, WIND_ACCELERATION, MAX_WIND, BATTLE_CAMERA_SCALE,
+  WORLD_WIDTH, WORLD_HEIGHT, BATTLE_CAMERA_OFFSET_X, BATTLE_CAMERA_OFFSET_Y,
+  PLAYER_FALL_ACCELERATION, PLAYER_MAX_FALL_SPEED, VOID_TERRAIN_DEPTH,
+  TANK_RADIUS, CRATER_EDGE, MAX_PLAYERS, HOLDABLE_ACTIONS, OPPOSITE_HOLD_ACTION,
+  BOT_NAMES, DEFAULT_THEME_ID,
+} from "./src/config.js";
 
 const PEER_CONFIG = {
   host: "0.peerjs.com",
@@ -17,42 +26,6 @@ const PEER_CONFIG = {
   },
 };
 
-const VIEW_WIDTH = 1400;
-const VIEW_HEIGHT = 760;
-const FRAME_STEP = 1000 / 60;
-const SNAPSHOT_INTERVAL = 40;
-const TURN_FUEL = 100;
-const MOVE_COST = 11;
-const MOVE_STEP = 12;
-const ANGLE_STEP = 3;
-const MIN_POWER = 34;
-const MAX_POWER = 100;
-const CHARGE_RATE = 32;
-const HOLD_REPEAT_INTERVAL = 90;
-const LAUNCH_SPEED_DIVISOR = 4.5;
-const WIND_ACCELERATION = 0.35;
-const MAX_WIND = 0.18;
-const BATTLE_CAMERA_SCALE = 0.86;
-const WORLD_WIDTH = Math.round(VIEW_WIDTH / BATTLE_CAMERA_SCALE);
-const WORLD_HEIGHT = Math.round(VIEW_HEIGHT / BATTLE_CAMERA_SCALE);
-const BATTLE_CAMERA_OFFSET_X = Math.round((VIEW_WIDTH - WORLD_WIDTH * BATTLE_CAMERA_SCALE) / 2);
-const BATTLE_CAMERA_OFFSET_Y = Math.round((VIEW_HEIGHT - WORLD_HEIGHT * BATTLE_CAMERA_SCALE) / 2);
-const PLAYER_FALL_ACCELERATION = 0.44;
-const PLAYER_MAX_FALL_SPEED = 18;
-const VOID_TERRAIN_DEPTH = 140;
-const TANK_RADIUS = 21;
-const CRATER_EDGE = 22;
-const MAX_PLAYERS = 4;
-const HOLDABLE_ACTIONS = ["move-left", "move-right", "angle-up", "angle-down"];
-const OPPOSITE_HOLD_ACTION = {
-  "move-left": "move-right",
-  "move-right": "move-left",
-  "angle-up": "angle-down",
-  "angle-down": "angle-up",
-};
-
-const BOT_NAMES = ["Rook", "Latch", "Mako", "Nova", "Torque", "Blitz", "Kite", "Beryl"];
-const DEFAULT_THEME_ID = "canyonbridge";
 
 const TANK_TYPES = {
   ironclad: {
