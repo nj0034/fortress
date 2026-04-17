@@ -7,7 +7,7 @@ import {
   LAUNCH_SPEED_DIVISOR, WIND_ACCELERATION, MAX_WIND, BATTLE_CAMERA_SCALE,
   WORLD_WIDTH, WORLD_HEIGHT, BATTLE_CAMERA_OFFSET_X, BATTLE_CAMERA_OFFSET_Y,
   PLAYER_FALL_ACCELERATION, PLAYER_MAX_FALL_SPEED, VOID_TERRAIN_DEPTH,
-  TANK_RADIUS, CRATER_EDGE, MAX_PLAYERS, HOLDABLE_ACTIONS, OPPOSITE_HOLD_ACTION,
+  TANK_RADIUS, TANK_FOOT_OFFSET, CRATER_EDGE, MAX_PLAYERS, HOLDABLE_ACTIONS, OPPOSITE_HOLD_ACTION,
   BOT_NAMES, DEFAULT_THEME_ID,
 } from "./src/config.js";
 import { TANK_TYPES } from "./src/data/tanks.js";
@@ -959,14 +959,14 @@ function getGroundYForPlayer(x, playerY = -Infinity, terrain = app.game.terrain)
     }
 
     if (terrainY >= WORLD_HEIGHT - 1) return null;
-    return terrainY - 17;
+    return terrainY - TANK_FOOT_OFFSET;
   }
 
   const terrainY = getTerrainYAt(x, terrain, referenceY);
   if (terrainY >= WORLD_HEIGHT - 1) {
     return null;
   }
-  return terrainY - 17;
+  return terrainY - TANK_FOOT_OFFSET;
 }
 
 function reflowPlayersOntoTerrain() {

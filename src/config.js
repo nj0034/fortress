@@ -22,6 +22,7 @@ export const PLAYER_FALL_ACCELERATION = 0.44;
 export const PLAYER_MAX_FALL_SPEED = 18;
 export const VOID_TERRAIN_DEPTH = 140;
 export const TANK_RADIUS = 21;
+export const TANK_FOOT_OFFSET = 21;
 export const CRATER_EDGE = 22;
 export const MAX_PLAYERS = 4;
 export const HOLDABLE_ACTIONS = ["move-left", "move-right", "angle-up", "angle-down"];
