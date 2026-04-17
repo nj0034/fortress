@@ -1228,10 +1228,19 @@ input:focus {
   opacity: 0.7;
 }
 
-.turn-rail { display:flex; gap:8px; padding:6px 10px; position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:20; }
+/* Turn order rail (Plan F) — sits inside .battle-top as full-width strip */
+.turn-order-rail { display:flex; gap:6px; min-height:48px; flex-basis:100%; padding:4px 10px; }
+/* Legacy alias kept for renderTurnRail internals */
+.turn-rail { display:flex; gap:6px; min-height:48px; flex-basis:100%; padding:4px 10px; }
 .turn-rail-slot { display:flex; flex-direction:column; align-items:center; min-width:52px; background:rgba(0,0,0,0.45); border-radius:6px; padding:4px 6px; color:#fff; font-size:11px; }
 .turn-rail-slot.is-next { outline:2px solid #ffcf3a; }
 .turn-rail-bar { height:3px; background:#ffcf3a; margin-top:3px; border-radius:2px; }
+/* Turn-order card classes (used by Task 3 refined renderer) */
+.turn-order-card { width:84px; padding:4px; border-radius:6px; background:#1a1d24; display:flex; flex-direction:column; align-items:center; }
+.turn-order-card.active { box-shadow:0 0 0 2px #f2c94c; }
+.turn-order-name { font-size:11px; line-height:1.2; max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.turn-order-delay { width:76px; height:4px; background:#333; border-radius:2px; margin-top:2px; }
+.turn-order-delay-fill { height:100%; background:#4ea1ff; border-radius:2px; }
 
 /* Weapon slot selector pill (Plan D) */
 .weapon-slot-pill { display:flex; gap:4px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.7); flex-wrap:wrap; }
