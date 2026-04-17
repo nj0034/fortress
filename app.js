@@ -233,6 +233,9 @@ function createEmptyGame(themeId) {
     resolveTimer: 0,
     botTimer: 0,
     matchSeed: null, // set when battle starts
+    hitEvents: [], // Plan I — render-local, not in state hash
+    floatTexts: [], // Plan I — render-local
+    shake: null, // Plan I — render-local
   };
 }
 
@@ -1353,6 +1356,9 @@ function resetGameForLobby(themeId, seed) {
     activePings: [], // Plan H
     selectedMode: "ffa", // Plan H
     match: null, // Plan H
+    hitEvents: [], // Plan I — render-local, not in state hash
+    floatTexts: [], // Plan I — render-local
+    shake: null, // Plan I — render-local
   };
 }
 
@@ -1971,9 +1977,37 @@ function resolveExplosion(projectile, impactPoint, directHitId = null) {
     }
 
     const falloff = 1 - distanceToBlast / maxReach;
-    const directBonus = directHitId === player.id ? projectile.directBonus : 0;
-    const rawDamage = projectile.damage * clamp(falloff, 0.18, 1) + directBonus;
-    applyDamage(player, rawDamage);
+    const directBonus = directHitId === player.id ? (projectile.directBonus ?? 0) : 0;
+    const baseDamage = projectile.damage * clamp(falloff, 0.18, 1) + directBonus;
+
+    // Plan I: classify the hit and scale damage by classification multiplier
+    const isDirectHit = directHitId === player.id;
+    const hitResult = resolveHit(
+      { turn: app.game.turn ?? null },
+      { ...projectile, damage: baseDamage },
+      player,
+      impactPoint,
+      {
+        attackerId: projectile.ownerId,
+        match: app.game.match ?? null,
+        isLastHit: true,
+      },
+    );
+
+    if (hitResult.reason !== "teamkill-prevented") {
+      // hitResult.damage = baseDamage * classificationMultiplier; pass to applyDamage which applies armor
+      applyDamage(player, hitResult.damage);
+      // Push hit event for renderer (floatText + shake)
+      if (app.game.hitEvents) {
+        app.game.hitEvents.push({
+          playerId: player.id,
+          x: isDirectHit ? player.x : impactPoint.x,
+          y: isDirectHit ? player.y : impactPoint.y,
+          damage: hitResult.damage,
+          classification: hitResult.classification,
+        });
+      }
+    }
   });
 
   app.game.players.forEach((player) => {

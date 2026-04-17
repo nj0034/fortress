@@ -19,6 +19,7 @@
 
 import { WEAPONS } from "../data/weapons.js";
 import { sinFP, cosFP, fromFP } from "./fixedpoint.js";
+import { classifyHit } from "./damage.js";
 
 export { WEAPON_SLOT_DELAY } from "../data/weapons.js";
 
@@ -179,21 +180,35 @@ function fireChain(_state, w, origin, angle, power) {
  * Call after a projectile hits a victim tank.
  * Applies frozen status delay if the projectile carries one.
  * Prevents damage if attacker and victim are teammates.
+ * Classifies the hit and scales damage by classification multiplier.
  *
- * @param {object} state   - { turn: turnManager } (Plan B's applyStatusDelay)
- * @param {object} proj    - fired projectile (carries .damage, .status, .ownerId)
- * @param {object} victim  - player object with .id
- * @param {object} [opts]  - { attackerId?: string, match?: { teams: object } }
- * @returns {{ damage: number, reason?: string }}
+ * @param {object} state        - { turn: turnManager } (Plan B's applyStatusDelay)
+ * @param {object} proj         - fired projectile (carries .damage, .status, .ownerId)
+ * @param {object} victim       - player object with .id, .y, .tankType
+ * @param {object} [impactPoint]- { x, y } world coordinate of impact
+ * @param {object} [opts]       - { attackerId?, match?, isLastHit? }
+ * @returns {{ damage: number, classification: object, reason?: string }}
  */
-export function resolveHit(state, proj, victim, { attackerId, match } = {}) {
+export function resolveHit(state, proj, victim, impactPoint, opts = {}) {
+  // Support legacy 4-arg call where 4th arg was opts (no impactPoint)
+  // New call: resolveHit(state, proj, victim, {x,y}, opts)
+  // Old call: resolveHit(state, proj, victim, { attackerId?, match? })
+  // Distinguish: impactPoint has numeric x and y; opts does not.
+  if (impactPoint && typeof impactPoint === "object" && (typeof impactPoint.x !== "number" || typeof impactPoint.y !== "number")) {
+    opts = impactPoint;
+    impactPoint = null;
+  }
+
+  const { attackerId, match, isLastHit = true } = opts;
+
   // Team-kill prevention: zero damage if same team
   if (match && attackerId !== undefined) {
     const teams = match.teams ?? {};
     const at = teams[attackerId];
     const vt = teams[victim.id];
     if (at !== undefined && vt !== undefined && at === vt && attackerId !== victim.id) {
-      return { damage: 0, reason: "teamkill-prevented" };
+      const classification = { type: "miss", damageMultiplier: 0, label: "MISS", color: "#aaaaaa" };
+      return { damage: 0, classification, reason: "teamkill-prevented" };
     }
   }
 
@@ -203,7 +218,10 @@ export function resolveHit(state, proj, victim, { attackerId, match } = {}) {
       applyStatusDelay(state.turn, victim.id, proj.status.delayBonus);
     }
   }
-  return { damage: proj.damage };
+
+  const classification = classifyHit(proj, victim, impactPoint ?? { x: 0, y: -9999 }, { isLastHit });
+  const damage = proj.damage * classification.damageMultiplier;
+  return { damage, classification };
 }
 
 // ---------------------------------------------------------------------------

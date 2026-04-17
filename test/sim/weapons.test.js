@@ -224,12 +224,17 @@ test("resolveHit: ice_ss1 frozen status calls applyStatusDelay on victim", () =>
   assert.equal(calledWith.bonus, 120);
 });
 
-test("resolveHit: returns {damage} object matching projectile damage", () => {
+test("resolveHit: returns {damage, classification} object", () => {
   const state2 = stubState();
   const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
   const proj = result.projectiles[0];
-  const hit = resolveHit({ turn: null }, proj, { id: "v" });
-  assert.equal(hit.damage, proj.damage);
+  // Pass explicit grounded impactPoint so classification is "normal" (1.0x)
+  const victim = { id: "v", tankType: "armor", y: 1000 };
+  const impactPoint = { x: 400, y: 500 }; // far from turret
+  const projGrounded = { ...proj, grounded: true };
+  const hit = resolveHit({ turn: null }, projGrounded, victim, impactPoint);
+  assert.equal(hit.damage, projGrounded.damage * hit.classification.damageMultiplier);
+  assert.ok(hit.classification, "classification present");
   assert.equal(hit.reason, undefined);
 });
 
@@ -324,4 +329,56 @@ test("smoke: eight mixed weaponIds fire without exceptions", () => {
     const res = fireWeapon(state, id, ORIGIN, ANGLE, POWER, WIND, rngFixed);
     assert.ok(res.projectiles.length >= 1, `${id}: expected at least 1 projectile`);
   }
+});
+
+// ── Task 2 (Plan I): resolveHit returns classification + scaled damage ────────
+
+test("resolveHit: critical hit scales damage by 1.5", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = { ...result.projectiles[0], grounded: true };
+  // armor victim.y=0, turretWorldY=72 → impactPoint.y=72 → critical
+  const victim = { id: "v", tankType: "armor", y: 0 };
+  const impactPoint = { x: 400, y: 72 };
+  const hit = resolveHit({ turn: null }, proj, victim, impactPoint);
+  assert.equal(hit.classification.type, "critical");
+  assert.equal(hit.damage, proj.damage * 1.5);
+});
+
+test("resolveHit: normal hit returns 1.0x damage", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = { ...result.projectiles[0], grounded: true };
+  const victim = { id: "v", tankType: "armor", y: 0 };
+  const impactPoint = { x: 400, y: 500 }; // far from turret
+  const hit = resolveHit({ turn: null }, proj, victim, impactPoint);
+  assert.equal(hit.classification.type, "normal");
+  assert.equal(hit.damage, proj.damage * 1.0);
+});
+
+test("resolveHit: teamkill returns classification with type miss", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = result.projectiles[0];
+  const match = { teams: { attacker: 0, victim: 0 } };
+  const victim = { id: "victim", tankType: "armor", y: 0 };
+  const hit = resolveHit({ turn: null }, proj, victim, null, { attackerId: "attacker", match });
+  assert.equal(hit.damage, 0);
+  assert.equal(hit.reason, "teamkill-prevented");
+  assert.ok(hit.classification, "classification present");
+});
+
+test("resolveHit: frozen status still applied on non-teamkill (regression)", () => {
+  let calledWith = null;
+  const mockTurn = {
+    applyStatusDelay: (mgr, tankId, bonus) => { calledWith = { tankId, bonus }; },
+  };
+  const state2 = stubState();
+  const result = fireWeapon(state2, "ice_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = { ...result.projectiles[0], grounded: true };
+  const victim = { id: "player2", tankType: "armor", y: 0 };
+  const impactPoint = { x: 400, y: 500 };
+  resolveHit({ turn: mockTurn }, proj, victim, impactPoint);
+  assert.ok(calledWith !== null, "applyStatusDelay should have been called");
+  assert.equal(calledWith.tankId, "player2");
 });
