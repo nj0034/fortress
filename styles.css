@@ -1133,12 +1133,33 @@ input:focus {
 
 .chat-box-battle {
   position: fixed;
+  top: auto;
+  left: auto;
+  right: 12px;
   bottom: 12px;
-  left: 12px;
-  width: 340px;
+  width: 280px;
+  max-height: 50vh;
   z-index: 20;
   background: rgba(20, 40, 60, 0.75);
   backdrop-filter: blur(12px);
+}
+
+.chat-box-battle .chat-messages {
+  max-height: calc(50vh - 80px);
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .chat-box-battle {
+    right: auto;
+    left: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+    max-height: 220px;
+  }
+  .chat-box-battle .chat-messages {
+    max-height: 140px;
+  }
 }
 
 .chat-messages {
