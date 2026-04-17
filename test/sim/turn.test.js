@@ -140,3 +140,54 @@ test("snapshot is a plain JSON-roundtrippable object and preserves structure", (
   assert.equal(rt.tanks.find((t) => t.id === "p3").alive, false);
   assert.ok(rt.pendingStatuses.p2);
 });
+
+// ── Plan H Task 4: Team-alternation tie-breaker ───────────────────────────────
+
+const teamTanks = [
+  { id: "a1", baseDelay: 700 }, // team 0
+  { id: "b1", baseDelay: 700 }, // team 1
+  { id: "a2", baseDelay: 700 }, // team 0
+  { id: "b2", baseDelay: 700 }, // team 1
+];
+const teamMap = { a1: 0, b1: 1, a2: 0, b2: 1 };
+
+test("pickNextTurn FFA (no teams): unchanged behavior — ties broken by lowest id", () => {
+  const m = createTurnManager(teamTanks);
+  // All delay=0, lowest id wins
+  assert.equal(pickNextTurn(m), "a1");
+});
+
+test("pickNextTurn team-mode: prefers tank whose team differs from recentTeam", () => {
+  const m = createTurnManager(teamTanks);
+  // All still at 0 delay, last was team 0 → prefer team 1
+  const next = pickNextTurn(m, { teams: teamMap, recentTeam: 0 });
+  // b1 and b2 are team 1; b1 has lower id
+  assert.equal(next, "b1");
+});
+
+test("pickNextTurn team-mode: when all same team as recentTeam, falls back to lowest id", () => {
+  const m = createTurnManager([
+    { id: "a1", baseDelay: 700 },
+    { id: "a2", baseDelay: 700 },
+  ]);
+  const teams = { a1: 0, a2: 0 };
+  const next = pickNextTurn(m, { teams, recentTeam: 0 });
+  assert.equal(next, "a1"); // fallback to lowest id
+});
+
+test("pickNextTurn team-mode: when recentTeam undefined, falls back to lowest id", () => {
+  const m = createTurnManager(teamTanks);
+  const next = pickNextTurn(m, { teams: teamMap, recentTeam: undefined });
+  assert.equal(next, "a1");
+});
+
+test("pickNextTurn team-mode: lower delay still wins regardless of team", () => {
+  const m = createTurnManager(teamTanks);
+  // Give b1 a large accumulated delay
+  m.tanks.find((t) => t.id === "a1").accumulatedDelay = 5000;
+  m.tanks.find((t) => t.id === "a2").accumulatedDelay = 5000;
+  m.tanks.find((t) => t.id === "b2").accumulatedDelay = 5000;
+  // b1 still at 0 — wins even though it's same team as recentTeam=1
+  const next = pickNextTurn(m, { teams: teamMap, recentTeam: 1 });
+  assert.equal(next, "b1");
+});

@@ -40,17 +40,48 @@ function flushPendingStatuses(manager) {
   manager.pendingStatuses = {};
 }
 
-export function pickNextTurn(manager) {
+/**
+ * Pick the tank whose turn is next.
+ *
+ * Base rule: lowest accumulatedDelay; ties broken by lowest id.
+ * Optional team-alternation tie-breaker: when `teams` and `recentTeam` are
+ * provided and multiple tanks tie on delay, prefer the tank whose team differs
+ * from `recentTeam`.  FFA / survival (teams omitted) behaves identically to
+ * before.
+ *
+ * @param {object} manager
+ * @param {{ teams?: object, recentTeam?: number|undefined }} [opts]
+ * @returns {string|null} tankId
+ */
+export function pickNextTurn(manager, { teams, recentTeam } = {}) {
   flushPendingStatuses(manager);
+  const useTeams = teams && Object.keys(teams).length > 0;
+
   let best = null;
   for (const t of manager.tanks) {
     if (!t.alive) continue;
-    if (
-      best === null ||
-      t.accumulatedDelay < best.accumulatedDelay ||
-      (t.accumulatedDelay === best.accumulatedDelay && t.id < best.id)
-    ) {
+    if (best === null) {
       best = t;
+      continue;
+    }
+
+    if (t.accumulatedDelay < best.accumulatedDelay) {
+      best = t;
+      continue;
+    }
+
+    if (t.accumulatedDelay === best.accumulatedDelay) {
+      // Team-alternation tie-breaker: prefer tank whose team ≠ recentTeam
+      if (useTeams && recentTeam !== undefined && recentTeam !== null) {
+        const tTeam = teams[t.id];
+        const bestTeam = teams[best.id];
+        const tDiffers = tTeam !== recentTeam;
+        const bestDiffers = bestTeam !== recentTeam;
+        if (tDiffers && !bestDiffers) { best = t; continue; }
+        if (!tDiffers && bestDiffers) { continue; }
+      }
+      // Final tie-break: lowest id
+      if (t.id < best.id) best = t;
     }
   }
   return best ? best.id : null;
