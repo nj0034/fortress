@@ -1,4 +1,5 @@
 import { clamp, lerp, degToRad, wrapAngleRadians, distance } from "./src/util/math.js";
+import { hashString, escapeHtml, randomId } from "./src/util/text.js";
 
 const PEER_CONFIG = {
   host: "0.peerjs.com",
@@ -496,19 +497,6 @@ function setTicker(text) {
   markUiDirty();
 }
 
-function randomId(prefix = "id") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-
-function hashString(text) {
-  let hash = 2166136261;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
 
 function mulberry32(seed) {
   return function random() {
@@ -519,11 +507,6 @@ function mulberry32(seed) {
   };
 }
 
-function escapeHtml(text) {
-  const d = document.createElement("div");
-  d.textContent = text;
-  return d.innerHTML;
-}
 
 function normalizeIncoming(data) {
   if (typeof data === "string") {
