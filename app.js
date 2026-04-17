@@ -2835,8 +2835,19 @@ function handleHostMessage(message) {
     }
     app.room = message.snapshot.room;
     const incomingGame = message.snapshot.game;
+    // Rehydrate turnManager from snapshot if present
+    let rehydratedTurnManager = app.game.turnManager ?? null;
+    if (incomingGame.turnManager && Array.isArray(incomingGame.turnManager.tanks)) {
+      if (!rehydratedTurnManager) {
+        rehydratedTurnManager = createTurnManager(incomingGame.turnManager.tanks);
+      }
+      rehydratedTurnManager.tanks = incomingGame.turnManager.tanks.map((t) => ({ ...t }));
+      rehydratedTurnManager.pendingStatuses = incomingGame.turnManager.pendingStatuses ?? {};
+      rehydratedTurnManager.history = incomingGame.turnManager.history ?? [];
+    }
     app.game = {
       ...incomingGame,
+      turnManager: rehydratedTurnManager,
       terrain: Array.isArray(incomingGame.terrain) ? incomingGame.terrain : app.game.terrain,
       bridgeFloor:
         "bridgeFloor" in incomingGame
