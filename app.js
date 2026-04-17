@@ -1,5 +1,6 @@
 import { clamp, lerp, degToRad, wrapAngleRadians, distance } from "./src/util/math.js";
 import { hashString, escapeHtml, randomId } from "./src/util/text.js";
+import { mulberry32, createPurposeRng } from "./src/sim/rng.js";
 import {
   VIEW_WIDTH, VIEW_HEIGHT, FRAME_STEP, SNAPSHOT_INTERVAL, TURN_FUEL, MOVE_COST,
   MOVE_STEP, ANGLE_STEP, MIN_POWER, MAX_POWER, CHARGE_RATE, HOLD_REPEAT_INTERVAL,
@@ -201,15 +202,6 @@ function setTicker(text) {
   markUiDirty();
 }
 
-
-function mulberry32(seed) {
-  return function random() {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 
 function normalizeIncoming(data) {
