@@ -3180,13 +3180,8 @@ function selectRandomTank() {
 }
 
 function resolveRandomTank() {
-  const normalTanks = Object.keys(TANK_TYPES).filter((id) => !TANK_TYPES[id].hidden);
-  const superChance = 0.08;
-  const roll = Math.random();
-  if (roll < superChance) {
-    return "tempest";
-  }
-  return normalTanks[Math.floor(Math.random() * normalTanks.length)];
+  const allTanks = Object.keys(TANK_TYPES);
+  return allTanks[Math.floor(Math.random() * allTanks.length)];
 }
 
 function drawPreviewTrackSegment(context, x, y, width, height, color) {
@@ -3395,7 +3390,7 @@ function renderTankPreviewCanvas(canvas, tankId, variant = "tile") {
   if (!TANK_TYPES[tankId]) {
     return;
   }
-  drawTankPreview(canvas.getContext("2d"), tankId, TANK_TYPES[tankId].color, variant);
+  drawTankPreview(canvas.getContext("2d"), tankId, TANK_TYPES[tankId].visual?.primaryColor ?? "#ffb84f", variant);
 }
 
 function renderLobbyTankCanvases() {
@@ -3553,10 +3548,10 @@ function renderTankStrip() {
             </div>
             <div class="tank-tile-head">
               <strong>${tank.name}</strong>
-              <span class="tank-dot" style="background:${tank.color}"></span>
+              <span class="tank-dot" style="background:${tank.visual?.primaryColor ?? "#ffb84f"}"></span>
             </div>
             <p class="tank-note">${tank.role}</p>
-            <p class="tank-note">${tank.weaponName}</p>
+            <p class="tank-note">${WEAPONS[tank.weapons?.ss1]?.name ?? ""}</p>
           </button>
         `,
       )
@@ -3565,7 +3560,7 @@ function renderTankStrip() {
 
   dom.tankStrip.querySelectorAll(".tank-tile").forEach((button) => {
     const tid = button.dataset.tankId;
-    const isActive = tid === app.selectedTank || (tid === "random" && app.selectedTank === "tempest");
+    const isActive = tid === app.selectedTank;
     button.classList.toggle("active", isActive);
     button.disabled = Boolean(app.room) && app.game.phase !== "lobby";
   });
@@ -3680,8 +3675,18 @@ function renderShowcase() {
   dom.selectedTankRole.textContent = tank.role;
   dom.selectedTankName.textContent = tank.name;
   dom.selectedTankDescription.textContent = tank.description;
-  dom.selectedTankWeapon.textContent = `${tank.weaponName} · ${tank.weaponText}`;
-  drawStatsRadar(tank.stats);
+  const ss1Name = WEAPONS[tank.weapons?.ss1]?.name ?? "";
+  const ss2Name = WEAPONS[tank.weapons?.ss2]?.name ?? "";
+  const newName = WEAPONS[tank.weapons?.new]?.name ?? "";
+  dom.selectedTankWeapon.textContent = `${ss1Name} / ${ss2Name} / ${newName}(NEW)`;
+  // Map tank.stats (fractional) to 0-100 radar scale
+  drawStatsRadar({
+    armor:     Math.round((2.0 - (tank.stats.armor ?? 1.0)) * 100),   // lower armor = tougher
+    attack:    Math.round(((tank.stats.maxHealth ?? 100) / 2.0)),
+    blast:     Math.round((tank.stats.precision ?? 1.0) * 80),
+    mobility:  Math.round((tank.stats.mobility ?? 1.0) * 70),
+    precision: Math.round((tank.stats.precision ?? 1.0) * 90),
+  });
   dom.tickerText.textContent = app.ticker;
   const readiness = 30 + app.game.players.length * 18 + (app.network.accepted || app.network.isHostReady ? 12 : 0);
   dom.readinessScore.textContent = roundScore(readiness);
@@ -3690,7 +3695,7 @@ function renderShowcase() {
 }
 
 function buildPlayerCard(player, mode = "preview", activeTurn = false) {
-  const tank = TANK_TYPES[player.tankType] ?? { name: "Random", color: "#aaa" };
+  const tank = TANK_TYPES[player.tankType] ?? { name: "Random", visual: { primaryColor: "#aaa" } };
   const healthPercent = clamp((player.health / player.maxHealth) * 100, 0, 100);
   const tags = [
     player.isHost ? "Host" : null,
@@ -5997,10 +6002,7 @@ function attachEvents() {
       minimapClickTimer = setTimeout(() => { minimapClickCount = 0; }, 2000);
       if (minimapClickCount >= 10) {
         minimapClickCount = 0;
-        selectTank("tempest");
-        setTicker("숨겨진 슈퍼탱크 Tempest가 해금되었습니다!");
-        markUiDirty();
-        renderUi();
+        // legacy tempest easter egg removed (Plan D)
       }
     });
   }
