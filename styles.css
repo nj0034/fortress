@@ -1264,11 +1264,11 @@ input:focus {
 .turn-rail-slot.is-next { outline:2px solid #ffcf3a; }
 .turn-rail-bar { height:3px; background:#ffcf3a; margin-top:3px; border-radius:2px; }
 /* Turn-order card classes (used by Task 3 refined renderer) */
-.turn-order-card { width:84px; padding:4px; border-radius:6px; background:#1a1d24; display:flex; flex-direction:column; align-items:center; }
-.turn-order-card.active { box-shadow:0 0 0 2px #f2c94c; }
-.turn-order-name { font-size:11px; line-height:1.2; max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.turn-order-delay { width:76px; height:4px; background:#333; border-radius:2px; margin-top:2px; }
-.turn-order-delay-fill { height:100%; background:#4ea1ff; border-radius:2px; }
+.turn-order-card { width:84px; padding:6px 4px; border-radius:12px; background:rgba(255,255,255,0.84); display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow: 0 6px 14px rgba(47,87,133,0.12); border: 2px solid rgba(54,95,138,0.12); }
+.turn-order-card.active { border-color: rgba(255,154,68,0.55); box-shadow: 0 0 0 2px rgba(255,197,72,0.55), 0 6px 14px rgba(47,87,133,0.14); background: linear-gradient(180deg, rgba(255,239,183,0.94), rgba(255,255,255,0.92)); }
+.turn-order-name { font-size:11px; line-height:1.2; max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color: var(--ink, #1e3550); font-weight:800; letter-spacing:0.02em; }
+.turn-order-delay { width:76px; height:6px; background:rgba(30,53,80,0.14); border-radius:999px; }
+.turn-order-delay-fill { height:100%; background: linear-gradient(90deg, #74f3d5 0%, #4ea1ff 100%); border-radius:999px; }
 
 /* Weapon slot selector pill (Plan D legacy — kept for fallback) */
 .weapon-slot-pill { display:flex; gap:4px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.7); flex-wrap:wrap; }
