@@ -15,7 +15,7 @@ test("hashString returns a 32-bit unsigned integer", () => {
 
 test("escapeHtml escapes special characters", () => {
   assert.equal(escapeHtml("<b>&"), "&lt;b&gt;&amp;");
-  assert.equal(escapeHtml('"\''), '"\'');
+  assert.equal(escapeHtml('"\''), "&quot;&#39;");
 });
 
 test("randomId has prefix and nonempty body", () => {
