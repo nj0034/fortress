@@ -39,6 +39,7 @@ import {
   WEAPON_SLOT_DELAY,
 } from "./src/sim/weapons.js";
 import { WEAPONS } from "./src/data/weapons.js";
+import { drawProjectileShape } from "./src/render/projectileRender.js";
 import {
   createTerrain,
   isSolidAt,
@@ -5614,59 +5615,17 @@ function drawProjectile(projectile) {
     return;
   }
 
-  const tailLength = clamp(24 + speed * 2.4, 28, 58);
-  const bodyLength = clamp(16 + speed * 0.3, 16, 22);
-
-  ctx.save();
-  ctx.translate(projectile.x, projectile.y);
-  ctx.rotate(angle);
-
-  const tail = ctx.createLinearGradient(-tailLength, 0, bodyLength * 0.5, 0);
-  tail.addColorStop(0, colorWithAlpha(shellColor, 0));
-  tail.addColorStop(0.35, colorWithAlpha(projectile.trail, 0.45));
-  tail.addColorStop(0.72, colorWithAlpha(glowColor, 0.92));
-  tail.addColorStop(1, colorWithAlpha(coreColor, 0.98));
-  ctx.fillStyle = tail;
-  ctx.beginPath();
-  ctx.moveTo(-tailLength, 0);
-  ctx.quadraticCurveTo(-tailLength * 0.44, -7.5, bodyLength * 0.25, -6.2);
-  ctx.quadraticCurveTo(bodyLength * 0.86, -4.6, bodyLength, 0);
-  ctx.quadraticCurveTo(bodyLength * 0.86, 4.6, bodyLength * 0.25, 6.2);
-  ctx.quadraticCurveTo(-tailLength * 0.44, 7.5, -tailLength, 0);
-  ctx.fill();
-
-  ctx.shadowBlur = 24;
-  ctx.shadowColor = colorWithAlpha(projectile.trail, 0.95);
-  ctx.fillStyle = colorWithAlpha(glowColor, 0.82);
-  ctx.beginPath();
-  ctx.ellipse(2, 0, bodyLength * 0.7, 7.2, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = shellColor;
-  ctx.beginPath();
-  ctx.ellipse(3, 0, bodyLength * 0.56, 4.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = colorWithAlpha(coreColor, 0.95);
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.arc(4, 0, 6.2, -Math.PI * 0.42, Math.PI * 0.42);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fffdf5";
-  ctx.beginPath();
-  ctx.ellipse(bodyLength * 0.34, -1.1, 4.3, 2.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = colorWithAlpha(coreColor, 0.92);
-  ctx.beginPath();
-  ctx.moveTo(-2.5, 0);
-  ctx.lineTo(3.5, -2.1);
-  ctx.lineTo(3.5, 2.1);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  // Dispatch to per-weapon shape renderer when a shape is defined
+  const weaponDef = WEAPONS[projectile.weaponId];
+  const shape = weaponDef?.fx?.shape ?? "bullet-round";
+  const radius = projectile.radius ?? 44;
+  drawProjectileShape(ctx, shape, {
+    x: projectile.x,
+    y: projectile.y,
+    radius: clamp(radius * 0.32, 8, 24),
+    color: projectile.trail,
+    angle,
+  });
 }
 
 function getPreviewShot(player) {
