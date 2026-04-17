@@ -3736,10 +3736,18 @@ function buildPlayerCard(player, mode = "preview", activeTurn = false) {
     .filter(Boolean)
     .join(" · ");
 
+  // Team color class for border (plan H)
+  const match = app.game?.match;
+  const teamIndex = match?.teams?.[player.id];
+  const teamClass = teamIndex === 0 ? " team-red" : teamIndex === 1 ? " team-blue" : "";
+  const teamDotHtml = teamIndex !== undefined
+    ? `<span class="team-dot ${teamIndex === 0 ? "team-red" : "team-blue"}"></span>`
+    : "";
+
   const cardClass =
     mode === "battle"
-      ? `battle-player-card ${activeTurn ? "active" : ""}`.trim()
-      : "player-pill";
+      ? `battle-player-card${teamClass} ${activeTurn ? "active" : ""}`.trim()
+      : `player-pill${teamClass}`.trim();
   const topClass = mode === "battle" ? "battle-player-top" : "player-pill-top";
 
   if (mode === "preview") {
@@ -3775,7 +3783,7 @@ function buildPlayerCard(player, mode = "preview", activeTurn = false) {
   return `
     <article class="${cardClass}">
       <div class="${topClass}">
-        <strong>${escapeHtml(player.name)}${newBadge}</strong>
+        <strong>${escapeHtml(player.name)}${newBadge}${teamDotHtml}</strong>
         <span>${escapeHtml(tank.name)}</span>
       </div>
       <div class="health-bar">
@@ -3808,7 +3816,37 @@ function renderPlayers() {
     );
   });
 
+  // Tag-team reserve strip (Plan H)
+  const existingStrip = dom.battleRoster.querySelector("#reserve-strip");
+  if (existingStrip) existingStrip.remove();
+  const match = app.game.match;
+  if (match?.mode === "tag-team" && match.reserveRoster?.length > 0) {
+    const reserveHtml = match.reserveRoster.map((rid) => {
+      const rp = players.find((p) => p.id === rid);
+      if (!rp) return "";
+      const teamIndex = match.teams?.[rid];
+      const dotClass = teamIndex === 0 ? "team-red" : "team-blue";
+      return `<span class="reserve-card"><span class="team-dot ${dotClass}"></span>${escapeHtml(rp.name)}</span>`;
+    }).join("");
+    dom.battleRoster.insertAdjacentHTML(
+      "beforeend",
+      `<div id="reserve-strip">${reserveHtml}</div>`,
+    );
+  }
+
   renderLobbyTankCanvases();
+}
+
+/**
+ * Show a transient "아군 보호" toast when a team-kill is prevented.
+ * Auto-removes after animation completes (1.2s).
+ */
+function showTeamKillToast() {
+  const toast = document.createElement("div");
+  toast.className = "teamkill-toast";
+  toast.textContent = "아군 보호";
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 1300);
 }
 
 function renderSummary() {
@@ -3975,6 +4013,19 @@ function renderBattleHud() {
   dom.powerPreviousMarker.style.left = `${previousPowerPercent}%`;
   dom.powerPreviousValue.textContent = `이전 ${Math.round(previousPower ?? 0)}`;
   dom.battleBanner.textContent = app.game.banner;
+
+  // Mode badge (Plan H)
+  if (dom.modeBadge) {
+    const match = app.game.match;
+    const modeId = match?.mode ?? app.game.selectedMode ?? "ffa";
+    const modeDef = MODES[modeId];
+    if (modeDef && modeId !== "ffa") {
+      dom.modeBadge.textContent = modeDef.name.toUpperCase();
+      dom.modeBadge.classList.remove("hidden");
+    } else {
+      dom.modeBadge.classList.add("hidden");
+    }
+  }
 
   // Weapon slot tabs (Plan F)
   renderWeaponSlots(localPlayer, canLocalPlayerAct());
