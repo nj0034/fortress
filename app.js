@@ -73,6 +73,9 @@ import {
 import { buildInventoryView, drawDropCapsule, drawInventoryStrip } from "./src/render/itemsRender.js";
 import { spawnFloatText, drawFloatTexts } from "./src/render/floatText.js";
 import { tickShake, applyShakeOffset } from "./src/render/shake.js";
+import { createAudioSystem } from "./src/audio/audio.js";
+import { SOUND_MANIFEST } from "./src/data/sounds.js";
+import { mountAudioControls } from "./src/ui/audioControls.js";
 
 
 const PEER_CONFIG = {
@@ -187,6 +190,7 @@ const app = {
     manualPowerMarker: null,
     pendingTeleport: null, // { slotIndex } when teleport click mode is active
   },
+  audio: null, // Plan I: initialized on first user gesture (autoplay policy)
   uiDirty: true,
   chatLog: [],
   lastUiRender: 0,
@@ -282,7 +286,27 @@ function setTicker(text) {
   markUiDirty();
 }
 
+// ---------------------------------------------------------------------------
+// Plan I: Audio system — lazy init on first user gesture (autoplay policy)
+// ---------------------------------------------------------------------------
 
+function bootAudio() {
+  if (app.audio) return; // already booted
+  try {
+    const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    app.audio = createAudioSystem({ manifest: SOUND_MANIFEST, context });
+  } catch (_) {
+    // AudioContext unavailable (e.g. test/Node environment)
+    app.audio = createAudioSystem({ manifest: SOUND_MANIFEST, context: null });
+  }
+}
+
+/** Play a sound by manifest id. No-op if audio not booted or id unknown. */
+function playSound(id) {
+  app.audio?.play(id);
+}
 
 function normalizeIncoming(data) {
   if (typeof data === "string") {
@@ -1532,6 +1556,11 @@ function endBattle(winner) {
     ? `${winner.name} 승리! 나가서 새 로비를 열면 다시 시작할 수 있습니다.`
     : "모든 탱크가 쓰러졌습니다.";
   setTicker(app.game.banner);
+  // Plan I: victory/defeat sounds from local player perspective
+  if (winner) {
+    if (winner.id === app.localPlayerId) playSound("victory");
+    else playSound("defeat");
+  }
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -1631,6 +1660,7 @@ function advanceTurn() {
   app.game.resolveTimer = 0;
   setupTurn();
   setTicker(`${app.game.players[nextIndex].name}의 턴입니다.`);
+  playSound("turn-start"); // Plan I
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -1907,6 +1937,7 @@ function fireWeapon(player) {
   }
 
   app.game.phase = "projectile";
+  playSound("fire"); // Plan I
   const weaponName = weapon?.name ?? slot.toUpperCase();
   setTicker(`${player.name}의 ${weaponName} 발사!`);
 }
@@ -1966,6 +1997,7 @@ function resolveExplosion(projectile, impactPoint, directHitId = null) {
     life: 1,
     color: projectile.trail,
   });
+  playSound("explode"); // Plan I
 
   app.game.players.forEach((player) => {
     if (!player.alive) {
@@ -2009,6 +2041,12 @@ function resolveExplosion(projectile, impactPoint, directHitId = null) {
           classification: hitResult.classification,
         });
       }
+      // Plan I: play hit sound
+      const hitType = hitResult.classification?.type;
+      if (hitType === "critical") playSound("hit-critical");
+      else if (hitType !== "miss") playSound("hit");
+      // Freeze status sound
+      if (projectile.status?.type === "frozen") playSound("freeze");
     }
   });
 
@@ -2164,6 +2202,22 @@ function applyUseItemAction(player, action) {
   }
 
   setTicker(`${player.name}: ${result.effect} 사용!`);
+
+  // Plan I: item sound effects
+  const itemSoundMap = {
+    teleport: "teleport",
+    ion_shield: "shield",
+    double_shot: "double-shot",
+    repair: "repair",
+    gravity_invert: "gravity",
+  };
+  const usedItem = result.itemId ?? null;
+  if (usedItem && itemSoundMap[usedItem]) {
+    playSound(itemSoundMap[usedItem]);
+  } else {
+    playSound("pickup"); // generic item sound
+  }
+
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -5822,6 +5876,7 @@ function sendPing(worldX, worldY, kind) {
   };
   if (!app.game.activePings) app.game.activePings = [];
   app.game.activePings.push(ping);
+  playSound("ping"); // Plan I
 
   // Broadcast to peers
   if (app.room) {
@@ -6296,6 +6351,25 @@ function attachEvents() {
       }
     });
   });
+
+  // Plan I: boot audio on first user gesture (autoplay policy)
+  function bootAudioAndMountControls() {
+    bootAudio();
+    if (app.audio) {
+      const lr = document.getElementById("lobby-audio-controls");
+      const br = document.getElementById("battle-audio-controls");
+      if (lr) mountAudioControls(lr, app.audio);
+      if (br) mountAudioControls(br, app.audio);
+    }
+  }
+  document.addEventListener("pointerdown", bootAudioAndMountControls, { once: true });
+  document.addEventListener("keydown", bootAudioAndMountControls, { once: true });
+
+  // Plan I: play ui-click on all lobby button clicks
+  document.addEventListener("click", (e) => {
+    const target = e.target.closest("button, .weapon-slot, .tank-tile");
+    if (target) playSound("ui-click");
+  });
 }
 
 async function init() {
@@ -6316,6 +6390,24 @@ async function init() {
 
   dom.playerNameInput.value = app.draftName;
   attachEvents();
+
+  // Plan I: mount audio controls (they read/write from app.audio which boots on first gesture)
+  // We mount a stub system initially (null context) so controls render immediately
+  const stubAudio = createAudioSystem({ manifest: SOUND_MANIFEST, context: null });
+  const lobbyAudioRoot = document.getElementById("lobby-audio-controls");
+  const battleAudioRoot = document.getElementById("battle-audio-controls");
+  if (lobbyAudioRoot) mountAudioControls(lobbyAudioRoot, stubAudio);
+  if (battleAudioRoot) mountAudioControls(battleAudioRoot, stubAudio);
+  // Override bootAudio to also sync controls after AudioContext is available
+  const _bootAudio = bootAudio;
+  window._fortressBootAudio = () => {
+    _bootAudio();
+    if (app.audio) {
+      if (lobbyAudioRoot) mountAudioControls(lobbyAudioRoot, app.audio);
+      if (battleAudioRoot) mountAudioControls(battleAudioRoot, app.audio);
+    }
+  };
+
   parseInviteHashOnLoad();
   renderUi();
   window.requestAnimationFrame(animationLoop);
