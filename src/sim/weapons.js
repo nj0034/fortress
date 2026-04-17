@@ -178,21 +178,32 @@ function fireChain(_state, w, origin, angle, power) {
 /**
  * Call after a projectile hits a victim tank.
  * Applies frozen status delay if the projectile carries one.
- * Returns the raw damage value (caller applies it to victim.health).
+ * Prevents damage if attacker and victim are teammates.
  *
- * @param {object} state  - { turn: turnManager } (Plan B's applyStatusDelay)
- * @param {object} proj   - fired projectile
- * @param {object} victim - player object with .id
- * @returns {number} damage
+ * @param {object} state   - { turn: turnManager } (Plan B's applyStatusDelay)
+ * @param {object} proj    - fired projectile (carries .damage, .status, .ownerId)
+ * @param {object} victim  - player object with .id
+ * @param {object} [opts]  - { attackerId?: string, match?: { teams: object } }
+ * @returns {{ damage: number, reason?: string }}
  */
-export function resolveHit(state, proj, victim) {
+export function resolveHit(state, proj, victim, { attackerId, match } = {}) {
+  // Team-kill prevention: zero damage if same team
+  if (match && attackerId !== undefined) {
+    const teams = match.teams ?? {};
+    const at = teams[attackerId];
+    const vt = teams[victim.id];
+    if (at !== undefined && vt !== undefined && at === vt && attackerId !== victim.id) {
+      return { damage: 0, reason: "teamkill-prevented" };
+    }
+  }
+
   if (proj.status?.type === "frozen" && state.turn) {
     const { applyStatusDelay } = state.turn;
     if (typeof applyStatusDelay === "function") {
       applyStatusDelay(state.turn, victim.id, proj.status.delayBonus);
     }
   }
-  return proj.damage;
+  return { damage: proj.damage };
 }
 
 // ---------------------------------------------------------------------------

@@ -224,12 +224,13 @@ test("resolveHit: ice_ss1 frozen status calls applyStatusDelay on victim", () =>
   assert.equal(calledWith.bonus, 120);
 });
 
-test("resolveHit: returns projectile damage value", () => {
+test("resolveHit: returns {damage} object matching projectile damage", () => {
   const state2 = stubState();
   const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
   const proj = result.projectiles[0];
-  const dmg = resolveHit({ turn: null }, proj, { id: "v" });
-  assert.equal(dmg, proj.damage);
+  const hit = resolveHit({ turn: null }, proj, { id: "v" });
+  assert.equal(hit.damage, proj.damage);
+  assert.equal(hit.reason, undefined);
 });
 
 test("resolveHit: non-frozen weapon does not call applyStatusDelay", () => {
@@ -271,6 +272,47 @@ test("resolveSelfHeal: turtle_new selfHeal=40", () => {
   const result = fireWeapon(state2, "turtle_new", ORIGIN, ANGLE, POWER, WIND, rngFixed);
   const proj = result.projectiles[0];
   assert.equal(proj.selfHeal, 40);
+});
+
+test("resolveHit: teammate attack returns damage=0 and reason='teamkill-prevented'", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = result.projectiles[0];
+  const match = { teams: { attacker: 0, victim: 0 } };
+  const hit = resolveHit({ turn: null }, proj, { id: "victim" }, { attackerId: "attacker", match });
+  assert.equal(hit.damage, 0);
+  assert.equal(hit.reason, "teamkill-prevented");
+});
+
+test("resolveHit: enemy attack not blocked (different teams)", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = result.projectiles[0];
+  const match = { teams: { attacker: 0, victim: 1 } };
+  const hit = resolveHit({ turn: null }, proj, { id: "victim" }, { attackerId: "attacker", match });
+  assert.ok(hit.damage > 0);
+  assert.equal(hit.reason, undefined);
+});
+
+test("resolveHit: no match option falls through as before", () => {
+  const state2 = stubState();
+  const result = fireWeapon(state2, "armor_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = result.projectiles[0];
+  const hit = resolveHit({ turn: null }, proj, { id: "victim" });
+  assert.ok(hit.damage > 0);
+});
+
+test("resolveHit: teammate frozen status does not apply status delay", () => {
+  let statusCalled = false;
+  const mockTurn = { applyStatusDelay: () => { statusCalled = true; } };
+  const state2 = stubState();
+  const result = fireWeapon(state2, "ice_ss1", ORIGIN, ANGLE, POWER, WIND, rngFixed);
+  const proj = result.projectiles[0];
+  const match = { teams: { attacker: 0, victim: 0 } };
+  const hit = resolveHit({ turn: mockTurn }, proj, { id: "victim" }, { attackerId: "attacker", match });
+  assert.equal(hit.damage, 0);
+  assert.equal(hit.reason, "teamkill-prevented");
+  assert.equal(statusCalled, false, "status delay must not fire for teammate");
 });
 
 // ── Task 13 pre-run: smoke across all shot types ──────────────────────────────
