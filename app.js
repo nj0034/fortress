@@ -6056,6 +6056,18 @@ function attachEvents() {
   dom.addBotBtn.addEventListener("click", addBot);
   dom.leaveRoomBtn.addEventListener("click", () => leaveRoom(true));
   dom.battleLeaveBtn.addEventListener("click", () => leaveRoom(true));
+
+  // Weapon slot tab click handler (Plan F Task 7)
+  const weaponSlotsEl = document.getElementById("weapon-slots");
+  if (weaponSlotsEl) {
+    weaponSlotsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".weapon-slot");
+      if (!btn || btn.disabled) return;
+      const slot = btn.dataset.slot;
+      if (slot) setSelectedWeapon(getLocalPlayer(), slot);
+    });
+  }
+
   dom.tankStrip.addEventListener("click", (event) => {
     const button = event.target.closest(".tank-tile");
     if (!button || button.disabled) {
