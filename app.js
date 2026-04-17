@@ -71,6 +71,8 @@ import {
   serializeInventory,
 } from "./src/sim/items.js";
 import { buildInventoryView, drawDropCapsule, drawInventoryStrip } from "./src/render/itemsRender.js";
+import { spawnFloatText, drawFloatTexts } from "./src/render/floatText.js";
+import { tickShake, applyShakeOffset } from "./src/render/shake.js";
 
 
 const PEER_CONFIG = {
@@ -5903,9 +5905,36 @@ function drawBattle(now) {
   ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
   drawBattleBackdrop();
 
+  // Plan I: drain hitEvents → spawn floatTexts + trigger shake
+  if (app.game.hitEvents?.length) {
+    for (const ev of app.game.hitEvents) {
+      const { classification, damage, x, y } = ev;
+      if (!classification || classification.type === "miss") continue;
+      const dmgInt = Math.round(damage);
+      spawnFloatText(app.game, {
+        x,
+        y: y - 20,
+        text: `${classification.label} ${dmgInt}`,
+        color: classification.color,
+        size: classification.type === "critical" ? 22 : 18,
+      });
+      if (classification.type === "critical" && !app.game.shake) {
+        app.game.shake = { frames: 6, amplitude: 3 };
+      }
+    }
+    app.game.hitEvents = [];
+  }
+
   ctx.save();
   ctx.translate(BATTLE_CAMERA_OFFSET_X, BATTLE_CAMERA_OFFSET_Y);
   ctx.scale(BATTLE_CAMERA_SCALE, BATTLE_CAMERA_SCALE);
+
+  // Plan I: apply screen shake
+  if (app.game.shake) {
+    applyShakeOffset(ctx, app.game.shake);
+    app.game.shake = tickShake(app.game.shake);
+  }
+
   drawBackground(now);
   drawWindRibbon(now);
   drawTerrain();
@@ -5937,6 +5966,9 @@ function drawBattle(now) {
       drawDropCapsule(ctx, drop, timeSec);
     }
   }
+
+  // Plan I: draw floating damage numbers after tanks, before HUD
+  drawFloatTexts(ctx, app.game);
 
   ctx.restore();
 
