@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+.claude/
+.omc/
+.superpowers/
+docs/
+test/
+.gitignore
+.assetsignore
+package.json
+package-lock.json
+wrangler.jsonc
+README.md
+.DS_Store
