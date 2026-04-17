@@ -1254,3 +1254,4 @@ input:focus {
 .weapon-slot:disabled { opacity:0.45; cursor:not-allowed; }
 .weapon-slot.active { border-color:#f2c94c; background:#3a2f12; color:#ffe58a; }
 #new-remaining { display:inline-flex; gap:2px; margin-left:4px; color:#8fd7ff; }
+.roster-new-badge { color:#8fd7ff; font-size:12px; margin-left:6px; }

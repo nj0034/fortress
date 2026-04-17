@@ -3749,11 +3749,16 @@ function buildPlayerCard(player, mode = "preview", activeTurn = false) {
     `;
   }
 
+  const newLeft = player.newUsesRemaining ?? 0;
+  const newBadge = newLeft > 0
+    ? `<span class="roster-new-badge">${"❄".repeat(Math.min(newLeft, 2))}</span>`
+    : "";
+
   return `
     <article class="${cardClass}">
       <div class="${topClass}">
-        <strong>${player.name}</strong>
-        <span>${tank.name}</span>
+        <strong>${escapeHtml(player.name)}${newBadge}</strong>
+        <span>${escapeHtml(tank.name)}</span>
       </div>
       <div class="health-bar">
         <div class="health-fill" style="width:${healthPercent}%"></div>
