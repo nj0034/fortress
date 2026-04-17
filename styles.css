@@ -1242,8 +1242,15 @@ input:focus {
 .turn-order-delay { width:76px; height:4px; background:#333; border-radius:2px; margin-top:2px; }
 .turn-order-delay-fill { height:100%; background:#4ea1ff; border-radius:2px; }
 
-/* Weapon slot selector pill (Plan D) */
+/* Weapon slot selector pill (Plan D legacy — kept for fallback) */
 .weapon-slot-pill { display:flex; gap:4px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.7); flex-wrap:wrap; }
 .weapon-slot-btn { padding:2px 7px; border-radius:4px; background:rgba(255,255,255,0.08); cursor:default; transition:background 0.12s,color 0.12s; }
 .weapon-slot-btn.active { background:rgba(255,200,60,0.85); color:#1a1200; }
 .weapon-slot-btn.disabled { opacity:0.38; text-decoration:line-through; }
+
+/* Weapon slots tabs (Plan F) */
+.weapon-slots { display:flex; gap:6px; align-items:center; }
+.weapon-slot { min-height:38px; padding:6px 10px; border:1px solid #3a3f48; border-radius:6px; background:#1a1d24; color:#e6e7ea; cursor:pointer; font-weight:600; font-size:13px; transition:border-color 0.12s,background 0.12s,color 0.12s; }
+.weapon-slot:disabled { opacity:0.45; cursor:not-allowed; }
+.weapon-slot.active { border-color:#f2c94c; background:#3a2f12; color:#ffe58a; }
+#new-remaining { display:inline-flex; gap:2px; margin-left:4px; color:#8fd7ff; }
