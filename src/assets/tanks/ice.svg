@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140">
+  <g id="track" fill="#2b2b2b">
+    <rect x="24" y="108" width="152" height="14" rx="5"/>
+    <circle cx="40"  cy="115" r="4.5" fill="#777"/>
+    <circle cx="70"  cy="115" r="4.5" fill="#777"/>
+    <circle cx="100" cy="115" r="4.5" fill="#777"/>
+    <circle cx="130" cy="115" r="4.5" fill="#777"/>
+    <circle cx="160" cy="115" r="4.5" fill="#777"/>
+  </g>
+  <g id="chassis" class="team-primary" fill="#88c8e0">
+    <polygon points="28,108 172,108 164,78 36,78"/>
+  </g>
+  <g id="accent" class="team-secondary" fill="#4aa8c8">
+    <polygon points="40,96 160,96 156,82 44,82"/>
+  </g>
+  <g id="turret" data-pivot-x="100" data-pivot-y="78">
+    <polygon points="76,78 124,78 118,58 82,58" class="team-primary" fill="#88c8e0"/>
+    <g id="barrel">
+      <rect x="118" y="65" width="34" height="8" rx="1" fill="#2a6080"/>
+    </g>
+    <g id="eye">
+      <circle cx="94" cy="70" r="2.5" fill="#e0f8ff"/>
+    </g>
+  </g>
+</svg>

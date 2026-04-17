@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140">
+  <g id="track" fill="#2b2b2b">
+    <rect x="30" y="110" width="140" height="12" rx="5"/>
+    <circle cx="46"  cy="116" r="4" fill="#777"/>
+    <circle cx="76"  cy="116" r="4" fill="#777"/>
+    <circle cx="100" cy="116" r="4" fill="#777"/>
+    <circle cx="124" cy="116" r="4" fill="#777"/>
+    <circle cx="154" cy="116" r="4" fill="#777"/>
+  </g>
+  <g id="chassis" class="team-primary" fill="#4a6ab8">
+    <rect x="34" y="82" width="132" height="30" rx="5"/>
+  </g>
+  <g id="accent" class="team-secondary" fill="#2a3a78">
+    <path d="M46 94 L60 82 L74 94 L88 82 L102 94 L116 82 L130 94 L144 82 L158 94" stroke="#2a3a78" stroke-width="5" fill="none"/>
+  </g>
+  <g id="turret" data-pivot-x="100" data-pivot-y="80">
+    <rect x="80" y="62" width="36" height="22" rx="4" class="team-primary" fill="#4a6ab8"/>
+    <g id="barrel">
+      <rect x="114" y="70" width="36" height="7" rx="1" fill="#1a2a50"/>
+    </g>
+    <g id="eye">
+      <circle cx="92" cy="72" r="2.5" fill="#ffe050"/>
+    </g>
+  </g>
+</svg>
