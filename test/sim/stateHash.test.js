@@ -56,3 +56,34 @@ test("hashPlayerStates is id-order-stable", () => {
   const b = [{ id: "b", hp: 2, accumulatedDelay: 20 }, { id: "a", hp: 1, accumulatedDelay: 10 }];
   assert.equal(hashPlayerStates(a), hashPlayerStates(b));
 });
+
+// Plan G: inventory fields included in hash
+test("hashPlayerStates changes when inventory changes", () => {
+  const base = [{ id: "p1", hp: 100, accumulatedDelay: 0, inventory: [] }];
+  const withItem = [{ id: "p1", hp: 100, accumulatedDelay: 0, inventory: ["repair_kit"] }];
+  assert.notEqual(hashPlayerStates(base), hashPlayerStates(withItem));
+});
+
+test("hashPlayerStates changes when shieldCharges changes", () => {
+  const a = [{ id: "p1", hp: 100, accumulatedDelay: 0, shieldCharges: 0 }];
+  const b = [{ id: "p1", hp: 100, accumulatedDelay: 0, shieldCharges: 1 }];
+  assert.notEqual(hashPlayerStates(a), hashPlayerStates(b));
+});
+
+test("hashPlayerStates changes when gravityOverride changes", () => {
+  const a = [{ id: "p1", hp: 100, accumulatedDelay: 0, gravityOverride: 0 }];
+  const b = [{ id: "p1", hp: 100, accumulatedDelay: 0, gravityOverride: -600 }];
+  assert.notEqual(hashPlayerStates(a), hashPlayerStates(b));
+});
+
+test("hashPlayerStates changes when doubleShotPending changes", () => {
+  const a = [{ id: "p1", hp: 100, accumulatedDelay: 0, doubleShotPending: false }];
+  const b = [{ id: "p1", hp: 100, accumulatedDelay: 0, doubleShotPending: true }];
+  assert.notEqual(hashPlayerStates(a), hashPlayerStates(b));
+});
+
+test("hashPlayerStates: players without inventory field hash same as empty inventory", () => {
+  const a = [{ id: "p1", hp: 100, accumulatedDelay: 0 }];
+  const b = [{ id: "p1", hp: 100, accumulatedDelay: 0, inventory: [], shieldCharges: 0, gravityOverride: 0, doubleShotPending: false }];
+  assert.equal(hashPlayerStates(a), hashPlayerStates(b));
+});

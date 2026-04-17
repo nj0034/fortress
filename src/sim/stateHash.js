@@ -19,6 +19,15 @@ export function hashPlayerStates(players) {
     h = Math.imul(h ^ hashString(p.id), FNV_PRIME) >>> 0;
     h = Math.imul(h ^ (p.hp | 0), FNV_PRIME) >>> 0;
     h = Math.imul(h ^ (p.accumulatedDelay | 0), FNV_PRIME) >>> 0;
+    // inventory fields (Plan G)
+    const inv = p.inventory ?? [];
+    h = Math.imul(h ^ (inv.length | 0), FNV_PRIME) >>> 0;
+    for (const itemId of inv) {
+      h = Math.imul(h ^ hashString(itemId), FNV_PRIME) >>> 0;
+    }
+    h = Math.imul(h ^ ((p.shieldCharges ?? 0) | 0), FNV_PRIME) >>> 0;
+    h = Math.imul(h ^ ((p.gravityOverride ?? 0) | 0), FNV_PRIME) >>> 0;
+    h = Math.imul(h ^ ((p.doubleShotPending ? 1 : 0) | 0), FNV_PRIME) >>> 0;
   }
   return h >>> 0;
 }
