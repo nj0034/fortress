@@ -1108,6 +1108,13 @@ input:focus {
     padding: 0;
   }
 
+  /* Plan F: turn-order rail wraps on narrow viewports */
+  .turn-order-rail { flex-wrap: wrap; }
+
+  /* Plan F: weapon slots stack below power meter */
+  .weapon-slots { order: 2; flex-basis: 100%; justify-content: center; margin-top: 6px; }
+  .power-meter { order: 1; }
+
 }
 
 @media (max-width: 540px) {
