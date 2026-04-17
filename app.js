@@ -60,6 +60,14 @@ import { drawTerrain as drawTerrainBitmap } from "./src/render/terrainRender.js"
 import { buildTurnOrderView } from "./src/ui/turnOrder.js";
 import { buildWeaponSlotsView, selectedWeaponReducer } from "./src/ui/weaponSlots.js";
 import { drawStatusIcons } from "./src/ui/statusIcons.js";
+import {
+  maybeSpawnDrop,
+  collectDrops,
+  useItem as simUseItem,
+  consumeDoubleShot,
+  serializeInventory,
+} from "./src/sim/items.js";
+import { buildInventoryView, drawDropCapsule, drawInventoryStrip } from "./src/render/itemsRender.js";
 
 
 const PEER_CONFIG = {
@@ -169,6 +177,7 @@ const app = {
     isChargeHeld: false,
     heldActions: new Set(),
     manualPowerMarker: null,
+    pendingTeleport: null, // { slotIndex } when teleport click mode is active
   },
   uiDirty: true,
   chatLog: [],
@@ -207,6 +216,7 @@ function createEmptyGame(themeId) {
     players: [],
     projectiles: [],
     pendingShots: [],
+    pendingDrops: [], // Plan G: active item drops on battlefield
     explosions: [],
     wind: 0,
     currentTurnIndex: 0,
@@ -216,6 +226,7 @@ function createEmptyGame(themeId) {
     winnerId: null,
     resolveTimer: 0,
     botTimer: 0,
+    matchSeed: null, // set when battle starts
   };
 }
 
@@ -1313,6 +1324,7 @@ function resetGameForLobby(themeId, seed) {
     players: [],
     projectiles: [],
     pendingShots: [],
+    pendingDrops: [], // Plan G
     explosions: [],
     wind: 0,
     currentTurnIndex: 0,
@@ -1321,6 +1333,7 @@ function resetGameForLobby(themeId, seed) {
     winnerId: null,
     resolveTimer: 0,
     botTimer: 0,
+    matchSeed: null, // Plan G
   };
 }
 
@@ -1464,6 +1477,23 @@ function setupTurn() {
     app.game.wind = Number(((Math.random() - 0.5) * 0.36).toFixed(2));
   }
   app.game.botTimer = 950;
+
+  // Plan G: host spawns item drop deterministically and broadcasts
+  if (app.localRole === "host" && app.game.matchSeed) {
+    if (!app.game.pendingDrops) app.game.pendingDrops = [];
+    const terrainHelper = {
+      width: WORLD_WIDTH,
+      surfaceYAt: (x) => surfaceYAt(app.game.bitmap, x),
+    };
+    const drop = maybeSpawnDrop(app.game, app.game.turnNumber, terrainHelper);
+    if (drop) {
+      app.game.pendingDrops.push(drop);
+      // Broadcast drop-spawn to clients
+      for (const conn of app.network.hostConnections.values()) {
+        if (conn?.open) conn.send({ type: "drop-spawn", drop });
+      }
+    }
+  }
 }
 
 function endBattle(winner) {
@@ -1496,6 +1526,14 @@ function destroyPlayer(player, message) {
 }
 
 function advanceTurn() {
+  // Plan G: collect drops for current player at end of turn
+  const currentPlayer = getCurrentPlayer();
+  if (currentPlayer && app.localRole === "host") {
+    collectDrops(app.game, currentPlayer, currentPlayer.x, currentPlayer.y);
+    // Also clear gravityOverride (turn-scoped)
+    currentPlayer.gravityOverride = 0;
+  }
+
   const alive = getAlivePlayers();
   if (alive.length <= 1) {
     endBattle(alive[0] ?? null);
@@ -1550,8 +1588,10 @@ function startBattle() {
   app.game.supportBridgeFloor = terrainState.supportBridgeFloor;
   app.game.projectiles = [];
   app.game.pendingShots = [];
+  app.game.pendingDrops = []; // Plan G: reset drops on battle start
   app.game.explosions = [];
   app.game.turnNumber = 1;
+  app.game.matchSeed = `${app.room.id}-battle-${Date.now()}`; // Plan G: deterministic RNG seed
   app.game.currentTurnIndex = 0;
   app.game.winnerId = null;
 
@@ -1577,6 +1617,11 @@ function startBattle() {
       fuel: TURN_FUEL,
       selectedWeapon: "ss1",
       newUsesRemaining: 2,
+      // Plan G: inventory fields
+      inventory: [],
+      shieldCharges: 0,
+      gravityOverride: 0,
+      doubleShotPending: false,
     };
   });
 
@@ -1768,6 +1813,32 @@ function fireWeapon(player) {
   if (weapon?.projectile?.selfHeal) {
     resolveSelfHeal({}, projectiles[0], player);
   }
+  // Plan G: double_shot — if flag set, queue secondary shot with deterministic angle jitter
+  if (player.doubleShotPending) {
+    const { angleJitter } = consumeDoubleShot(app.game, player, app.game.turnNumber, player.id);
+    const jitteredAngle = player.angle + angleJitter;
+    const rng2 = createPurposeRng(app.game.matchSeed ?? 0, `doubleshot:${app.game.turnNumber ?? 0}`);
+    const muzzle2 = getMuzzle(player);
+    const { projectiles: proj2 } = simFireWeapon(
+      { tanks: app.game.players, terrain: null, turn: app.game.turnManager },
+      weaponId,
+      { x: muzzle2.x, y: muzzle2.y },
+      jitteredAngle,
+      player.power,
+      app.game.wind,
+      rng2,
+    );
+    const secondaryShots = proj2.map((p, index) => ({
+      ...p,
+      id: `${player.id}-ds-${index}`,
+      ownerId: player.id,
+      delay: 180, // 180ms after primary
+      spread: 0,
+      speedMultiplier: 1,
+    }));
+    app.game.pendingShots = [...app.game.pendingShots, ...secondaryShots];
+  }
+
   app.game.phase = "projectile";
   const weaponName = weapon?.name ?? slot.toUpperCase();
   setTicker(`${player.name}의 ${weaponName} 발사!`);
@@ -1776,6 +1847,12 @@ function fireWeapon(player) {
 function applyDamage(player, amount) {
   const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
   let damage = amount * (tank.stats?.armor ?? 1.0);
+
+  // Plan G: ion_shield halves damage once then is consumed
+  if (player.shieldCharges > 0) {
+    damage = damage * 0.5;
+    player.shieldCharges = Math.max(0, player.shieldCharges - 1);
+  }
 
   if (player.shield > 0) {
     const absorbed = Math.min(player.shield, damage * 0.55);
@@ -1947,7 +2024,51 @@ function processControlAction(playerId, action) {
     return;
   }
 
+  // Plan G: use-item command
+  if (action.type === "use-item") {
+    applyUseItemAction(player, action);
+    return;
+  }
+
   applyStepAction(player, action.type);
+  broadcastSnapshot(true);
+  markUiDirty();
+}
+
+/**
+ * Plan G: apply a use-item action for the given player (host-side).
+ */
+function applyUseItemAction(player, action) {
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+  const baseDelay = tank.stats?.baseDelay ?? 720;
+
+  const terrainHelper = {
+    isSolidAt: (x, y) => isSolidAt(app.game.bitmap, Math.round(x), Math.round(y)),
+    surfaceYAt: (x) => surfaceYAt(app.game.bitmap, x),
+  };
+
+  const applyDelay = (tankId, delta) => {
+    if (app.game.turnManager) {
+      applyTurnStatusDelay(app.game.turnManager, tankId, delta);
+    }
+  };
+
+  const result = simUseItem(
+    app.game,
+    player,
+    action.slotIndex ?? 0,
+    action.target ?? null,
+    baseDelay,
+    applyDelay,
+    terrainHelper,
+  );
+
+  if (!result.ok) {
+    setTicker(`아이템 사용 실패: ${result.reason ?? "unknown"}`);
+    return;
+  }
+
+  setTicker(`${player.name}: ${result.effect} 사용!`);
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -2111,6 +2232,46 @@ function sendActionPayload(actionType, payload = {}) {
   app.network.clientConnection.send({ type: "action", action });
 }
 
+// ─── Plan G: item use input helpers ──────────────────────────────────────────
+
+/**
+ * Enqueue use-item for slot at slotIndex. If item is teleport, enter click-select mode.
+ */
+function sendItemUse(player, slotIndex) {
+  if (!canLocalPlayerAct()) {
+    setTicker("지금은 당신의 턴이 아닙니다.");
+    return;
+  }
+  const itemId = player.inventory?.[slotIndex];
+  if (!itemId) return;
+
+  if (itemId === "teleport") {
+    app.input.pendingTeleport = { slotIndex };
+    setTicker("순간이동 위치를 클릭하세요. ESC로 취소.");
+    markUiDirty();
+    return;
+  }
+
+  sendActionPayload("use-item", { slotIndex, itemId });
+}
+
+/**
+ * Handle canvas click for teleport target selection.
+ * @param {number} worldX  world-space x coordinate
+ * @param {number} worldY  world-space y coordinate
+ */
+function handleCanvasTeleportClick(worldX, worldY) {
+  if (!app.input.pendingTeleport) return false;
+  const { slotIndex } = app.input.pendingTeleport;
+  const player = getLocalPlayer();
+  if (!player) { app.input.pendingTeleport = null; return false; }
+  app.input.pendingTeleport = null;
+  sendActionPayload("use-item", { slotIndex, itemId: "teleport", target: { x: worldX, y: worldY } });
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function startHoldInput(actionType) {
   if (!canLocalPlayerAct()) {
     setTicker("지금은 당신의 턴이 아닙니다.");
@@ -2246,7 +2407,12 @@ function updateProjectiles(dtMs) {
   app.game.projectiles.forEach((projectile) => {
     let directHitId = null;
     projectile.vx += app.game.wind * projectile.windFactor * WIND_ACCELERATION * frameScale;
-    projectile.vy += 0.23 * projectile.gravityScale * frameScale;
+    // Plan G: gravityOverride (fixed-point /1000) overrides gravityScale when set
+    const owner = projectile.ownerId ? app.game.players.find((p) => p.id === projectile.ownerId) : null;
+    const gravityScaleEff = (owner && owner.gravityOverride !== 0)
+      ? (owner.gravityOverride / 1000)
+      : projectile.gravityScale;
+    projectile.vy += 0.23 * gravityScaleEff * frameScale;
     applyProjectileGuidance(projectile, frameScale);
     projectile.x += projectile.vx * frameScale;
     projectile.y += projectile.vy * frameScale;
@@ -3002,6 +3168,20 @@ function handleHostMessage(message) {
       Array.isArray(message.data)
     ) {
       app.game[key] = message.data;
+    }
+    return;
+  }
+
+  // Plan G: drop-spawn — client reconciles drops by id
+  if (message.type === "drop-spawn") {
+    const drop = message.drop;
+    if (drop && typeof drop.id === "string") {
+      if (!app.game.pendingDrops) app.game.pendingDrops = [];
+      const exists = app.game.pendingDrops.some((d) => d.id === drop.id);
+      if (!exists) {
+        app.game.pendingDrops.push(drop);
+        markUiDirty();
+      }
     }
     return;
   }
@@ -5478,7 +5658,21 @@ function drawBattle(now) {
     }
   }
 
+  // Plan G: draw pending item drops on battlefield
+  if (app.game.pendingDrops?.length) {
+    const timeSec = now / 1000;
+    for (const drop of app.game.pendingDrops) {
+      drawDropCapsule(ctx, drop, timeSec);
+    }
+  }
+
   ctx.restore();
+
+  // Plan G: draw inventory strip for local player (canvas-based overlay)
+  if (localPlayer && app.game.phase !== "idle" && app.game.phase !== "lobby") {
+    const invView = buildInventoryView(localPlayer);
+    drawInventoryStrip(ctx, invView, { x: 10, y: VIEW_HEIGHT - 70 });
+  }
 
   if (app.game.phase === "game-over" && app.game.winnerId) {
     const winner = app.game.players.find((player) => player.id === app.game.winnerId);
@@ -5537,6 +5731,29 @@ function applyKeyboard(event) {
     event.preventDefault();
     setSelectedWeapon(getLocalPlayer(), "new");
     return;
+  }
+
+  // ESC: cancel pending teleport
+  if (event.code === "Escape") {
+    if (app.input.pendingTeleport) {
+      app.input.pendingTeleport = null;
+      setTicker("순간이동 취소됨.");
+      markUiDirty();
+    }
+    return;
+  }
+
+  // Plan G: inventory keybindings Q=slot0, W=slot1, E=slot2
+  // W is also angle-up, but inventory takes priority when the slot has an item
+  if (event.code === "KeyQ" || event.code === "KeyW" || event.code === "KeyE") {
+    const slotMap = { KeyQ: 0, KeyW: 1, KeyE: 2 };
+    const slotIndex = slotMap[event.code];
+    const player = getLocalPlayer();
+    if (player && player.inventory && player.inventory[slotIndex] !== undefined) {
+      event.preventDefault();
+      sendItemUse(player, slotIndex);
+      return;
+    }
   }
 
   const action = map[event.code];
@@ -5655,6 +5872,21 @@ function attachEvents() {
       if (!btn || btn.disabled) return;
       const slot = btn.dataset.slot;
       if (slot) setSelectedWeapon(getLocalPlayer(), slot);
+    });
+  }
+
+  // Plan G: battle canvas click → teleport target selection
+  if (dom.battleCanvas) {
+    dom.battleCanvas.addEventListener("click", (e) => {
+      if (!app.input.pendingTeleport) return;
+      const rect = dom.battleCanvas.getBoundingClientRect();
+      const scaleX = dom.battleCanvas.width / rect.width;
+      const scaleY = dom.battleCanvas.height / rect.height;
+      const canvasX = (e.clientX - rect.left) * scaleX;
+      const canvasY = (e.clientY - rect.top) * scaleY;
+      const worldX = (canvasX - BATTLE_CAMERA_OFFSET_X) / BATTLE_CAMERA_SCALE;
+      const worldY = (canvasY - BATTLE_CAMERA_OFFSET_Y) / BATTLE_CAMERA_SCALE;
+      handleCanvasTeleportClick(worldX, worldY);
     });
   }
 
