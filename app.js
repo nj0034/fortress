@@ -13,6 +13,13 @@ import {
 import { TANK_TYPES } from "./src/data/tanks.js";
 import { THEMES } from "./src/data/maps.js";
 import {
+  loadTankTemplates,
+  renderTankToCanvas,
+  preRasterize,
+  TANK_IDS,
+  TEAM_COLORS,
+} from "./src/render/tankRender.js";
+import {
   createTurnManager,
   pickNextTurn,
   applyAction as applyTurnAction,
@@ -21,6 +28,9 @@ import {
   normalizeDelays as normalizeTurnDelays,
   snapshot as snapshotTurnManager,
 } from "./src/sim/turn.js";
+
+// Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
+const USE_SVG_TANKS = true;
 
 const PEER_CONFIG = {
   host: "0.peerjs.com",
@@ -959,6 +969,7 @@ function buildSnapshot(includeTerrain = true) {
       wind: app.game.wind,
       currentTurnIndex: app.game.currentTurnIndex,
       turnNumber: app.game.turnNumber,
+      turnManager: app.game.turnManager ? snapshotTurnManager(app.game.turnManager) : null,
       banner: app.game.banner,
       winnerId: app.game.winnerId,
       resolveTimer: app.game.resolveTimer,
@@ -3162,7 +3173,35 @@ function drawTankPreview(context, tankId, color, variant = "tile") {
 }
 
 function renderTankPreviewCanvas(canvas, tankId, variant = "tile") {
-  if (!canvas || !TANK_TYPES[tankId]) {
+  if (!canvas) {
+    return;
+  }
+
+  if (USE_SVG_TANKS && TANK_IDS.includes(tankId)) {
+    // SVG-rendered Phase-1 tank
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const profiles = {
+      hero: { x: 0.5, y: 0.86, scale: 1.0 },
+      tile: { x: 0.5, y: 0.86, scale: 0.72 },
+      pill: { x: 0.5, y: 0.86, scale: 0.45 },
+    };
+    const p = profiles[variant] ?? profiles.tile;
+    const team = TEAM_COLORS[0];
+    preRasterize(tankId, team).catch(() => {});
+    renderTankToCanvas(ctx, {
+      tankId,
+      x: canvas.width * p.x,
+      y: canvas.height * p.y,
+      angle: 0,
+      turretAngle: -15 * (Math.PI / 180),
+      teamColor: team,
+      scale: p.scale,
+    });
+    return;
+  }
+
+  if (!TANK_TYPES[tankId]) {
     return;
   }
   drawTankPreview(canvas.getContext("2d"), tankId, TANK_TYPES[tankId].color, variant);
@@ -5710,10 +5749,22 @@ function attachEvents() {
   });
 }
 
-function init() {
+async function init() {
   if (!getPeerCtor()) {
     updateStatus("모듈 로딩 실패", "sand");
     setTicker("Peer 연결 스크립트를 불러오지 못했습니다. 네트워크를 확인해주세요.");
+  }
+
+  if (USE_SVG_TANKS) {
+    try {
+      await loadTankTemplates();
+      // Pre-rasterize all tanks for all team colors to avoid placeholder frames
+      await Promise.all(
+        TANK_IDS.flatMap((id) => TEAM_COLORS.map((team) => preRasterize(id, team)))
+      );
+    } catch (e) {
+      console.warn("SVG tank templates failed to load, falling back to canvas drawing:", e);
+    }
   }
 
   dom.playerNameInput.value = app.draftName;
