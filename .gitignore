@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Claude Code / OMC / Superpowers workspaces
+.claude/
+.omc/
+.superpowers/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
