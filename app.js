@@ -5674,6 +5674,7 @@ function getPreviewShot(player) {
     damage: weapon.projectile.damage,
     radius: weapon.projectile.radius,
     spread: 0,
+    trail: weapon.fx?.trail ?? "#ffd24b",
   };
 }
 
