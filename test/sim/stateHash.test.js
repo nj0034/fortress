@@ -44,3 +44,15 @@ test("combineHashes is deterministic", () => {
   assert.equal(combineHashes(1, 2, 3), combineHashes(1, 2, 3));
   assert.notEqual(combineHashes(1, 2, 3), combineHashes(3, 2, 1));
 });
+
+test("hashPlayerStates is sensitive to accumulatedDelay", () => {
+  const a = [{ id: "p1", hp: 100, accumulatedDelay: 0 }, { id: "p2", hp: 100, accumulatedDelay: 0 }];
+  const b = [{ id: "p1", hp: 100, accumulatedDelay: 100 }, { id: "p2", hp: 100, accumulatedDelay: 0 }];
+  assert.notEqual(hashPlayerStates(a), hashPlayerStates(b));
+});
+
+test("hashPlayerStates is id-order-stable", () => {
+  const a = [{ id: "a", hp: 1, accumulatedDelay: 10 }, { id: "b", hp: 2, accumulatedDelay: 20 }];
+  const b = [{ id: "b", hp: 2, accumulatedDelay: 20 }, { id: "a", hp: 1, accumulatedDelay: 10 }];
+  assert.equal(hashPlayerStates(a), hashPlayerStates(b));
+});

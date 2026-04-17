@@ -5504,27 +5504,64 @@ function drawPlayer(player) {
   const bodyColor = player.alive ? tank.color : "#97a4b3";
   const trimColor = player.alive ? colorWithAlpha("#ffffff", 0.66) : colorWithAlpha("#d4dae2", 0.55);
 
-  ctx.save();
-  ctx.translate(player.x, player.y);
-
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
-  ctx.beginPath();
-  ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  drawTankChassis(tank.id, bodyColor, trimColor);
-  drawTankHull(tank.id, bodyColor, trimColor);
-  drawTankTurretDetails(tank.id, player, bodyColor);
-
-  if (isCurrent) {
-    ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 30, 0, Math.PI * 2);
-    ctx.stroke();
+  // Advance per-frame animation counters
+  if ((player.recoilPhase ?? 1) < 1) {
+    player.recoilPhase = Math.min(1, (player.recoilPhase ?? 1) + 1 / 10);
+  }
+  if ((player.tintFlash ?? 0) > 0) {
+    player.tintFlash = Math.max(0, (player.tintFlash ?? 0) - 1 / 7.2);
   }
 
-  ctx.restore();
+  if (USE_SVG_TANKS && TANK_IDS.includes(tank.id)) {
+    // SVG-rendered Phase-1 tank — draw directly in world space
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (isCurrent) {
+      ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    renderTankToCanvas(ctx, {
+      tankId: tank.id,
+      x: player.x,
+      y: player.y,
+      angle: 0,
+      turretAngle: degToRad(player.angle),
+      teamColor: TEAM_COLORS[0],
+      recoilPhase: player.recoilPhase ?? 1,
+      tintFlash: player.tintFlash ?? 0,
+      scale: 0.5,
+    });
+  } else {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawTankChassis(tank.id, bodyColor, trimColor);
+    drawTankHull(tank.id, bodyColor, trimColor);
+    drawTankTurretDetails(tank.id, player, bodyColor);
+
+    if (isCurrent) {
+      ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
 
   ctx.save();
   ctx.textAlign = "center";
