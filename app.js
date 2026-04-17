@@ -18,6 +18,7 @@ import {
   preRasterize,
   TANK_IDS,
   TEAM_COLORS,
+  resolveTeamColor,
 } from "./src/render/tankRender.js";
 import {
   createTurnManager,
@@ -3398,7 +3399,7 @@ function renderTankPreviewCanvas(canvas, tankId, variant = "tile") {
     pill: { x: 0.5, y: 0.86, scale: 0.45 },
   };
   const p = profiles[variant] ?? profiles.tile;
-  const team = TEAM_COLORS[0];
+  const team = resolveTeamColor(null, null, 0);
   preRasterize(tankId, team).catch(() => {});
   renderTankToCanvas(ctx, {
     tankId,
@@ -5605,7 +5606,11 @@ function drawPlayer(player) {
     y: player.y,
     angle: 0,
     turretAngle: degToRad(player.angle),
-    teamColor: TEAM_COLORS[0],
+    teamColor: resolveTeamColor(
+      app.game.match ?? null,
+      player.id,
+      app.game.players.indexOf(player),
+    ),
     recoilPhase: player.recoilPhase ?? 1,
     tintFlash: player.tintFlash ?? 0,
     scale: 0.5,

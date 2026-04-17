@@ -102,6 +102,28 @@ export function tankCacheKey(tankId, teamName) {
 }
 
 /**
+ * Resolve the team color for a player given match context.
+ *
+ * FFA / survival (match.teams empty or absent):
+ *   color = TEAM_COLORS[joinIndex % 4]  (each player gets unique color by join order)
+ *
+ * Team modes (match.teams populated):
+ *   color = TEAM_COLORS[teamIndex]  (0 = red, 1 = blue)
+ *
+ * @param {object|null} match       - match state from createMatch, or null for FFA legacy
+ * @param {string}      playerId    - player id
+ * @param {number}      joinIndex   - 0-based index in the player join order
+ * @returns {{ name: string, primary: string, secondary: string }}
+ */
+export function resolveTeamColor(match, playerId, joinIndex) {
+  if (match && match.teams && Object.keys(match.teams).length > 0) {
+    const teamIndex = match.teams[playerId] ?? 0;
+    return TEAM_COLORS[teamIndex % TEAM_COLORS.length];
+  }
+  return TEAM_COLORS[(joinIndex ?? 0) % TEAM_COLORS.length];
+}
+
+/**
  * Recoil curve: piecewise — 0→0.4 ramps 0→1, 0.4→1.0 eases 1→0.
  *
  * @param {number} phase  Value in [0, 1]

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyTeamColor, mixColors, TEAM_COLORS, tankCacheKey, recoilCurve } from "../../src/render/tankRender.js";
+import { applyTeamColor, mixColors, TEAM_COLORS, tankCacheKey, recoilCurve, resolveTeamColor } from "../../src/render/tankRender.js";
 
 test("applyTeamColor swaps team-primary and team-secondary fills", () => {
   const svg = `<svg><rect class="team-primary" fill="#000"/><rect class="team-secondary" fill="#fff"/><rect fill="#888"/></svg>`;
@@ -119,4 +119,29 @@ test("recoilCurve eases back down in 0.4→1.0 range", () => {
   assert.ok(recoilCurve(0.7) > 0);
   assert.ok(recoilCurve(0.7) < 1);
   assert.ok(recoilCurve(0.7) < recoilCurve(0.4));
+});
+
+// ── Plan H Task 7: resolveTeamColor ──────────────────────────────────────────
+
+test("resolveTeamColor FFA: returns TEAM_COLORS[joinIndex]", () => {
+  assert.deepEqual(resolveTeamColor(null, "p1", 0), TEAM_COLORS[0]);
+  assert.deepEqual(resolveTeamColor(null, "p2", 1), TEAM_COLORS[1]);
+  assert.deepEqual(resolveTeamColor(null, "p3", 2), TEAM_COLORS[2]);
+});
+
+test("resolveTeamColor FFA: joinIndex wraps at 4", () => {
+  assert.deepEqual(resolveTeamColor(null, "p5", 4), TEAM_COLORS[0]);
+});
+
+test("resolveTeamColor team-mode: returns TEAM_COLORS[teamIndex]", () => {
+  const match = { teams: { a: 0, b: 1, c: 0, d: 1 } };
+  assert.deepEqual(resolveTeamColor(match, "a", 0), TEAM_COLORS[0]); // red
+  assert.deepEqual(resolveTeamColor(match, "b", 1), TEAM_COLORS[1]); // blue
+  assert.deepEqual(resolveTeamColor(match, "c", 2), TEAM_COLORS[0]); // red despite index 2
+  assert.deepEqual(resolveTeamColor(match, "d", 3), TEAM_COLORS[1]); // blue despite index 3
+});
+
+test("resolveTeamColor empty match.teams falls back to joinIndex", () => {
+  const match = { teams: {} };
+  assert.deepEqual(resolveTeamColor(match, "p1", 2), TEAM_COLORS[2]);
 });
