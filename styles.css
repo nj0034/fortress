@@ -1232,3 +1232,9 @@ input:focus {
 .turn-rail-slot { display:flex; flex-direction:column; align-items:center; min-width:52px; background:rgba(0,0,0,0.45); border-radius:6px; padding:4px 6px; color:#fff; font-size:11px; }
 .turn-rail-slot.is-next { outline:2px solid #ffcf3a; }
 .turn-rail-bar { height:3px; background:#ffcf3a; margin-top:3px; border-radius:2px; }
+
+/* Weapon slot selector pill (Plan D) */
+.weapon-slot-pill { display:flex; gap:4px; align-items:center; margin-top:4px; font-size:11px; font-weight:700; color:rgba(255,255,255,0.7); flex-wrap:wrap; }
+.weapon-slot-btn { padding:2px 7px; border-radius:4px; background:rgba(255,255,255,0.08); cursor:default; transition:background 0.12s,color 0.12s; }
+.weapon-slot-btn.active { background:rgba(255,200,60,0.85); color:#1a1200; }
+.weapon-slot-btn.disabled { opacity:0.38; text-decoration:line-through; }

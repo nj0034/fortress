@@ -1722,6 +1722,16 @@ function spawnProjectile(player, shot) {
   });
 }
 
+function setSelectedWeapon(player, slot) {
+  if (!player || !canLocalPlayerAct()) return;
+  if (slot === "new" && (player.newUsesRemaining ?? 0) <= 0) {
+    setTicker("NEW 무기 사용 횟수를 모두 소진했습니다.");
+    return;
+  }
+  player.selectedWeapon = slot;
+  markUiDirty();
+}
+
 function fireWeapon(player) {
   const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
   const slot = player.selectedWeapon ?? "ss1";
@@ -3941,6 +3951,26 @@ function renderBattleHud() {
   dom.powerPreviousValue.textContent = `이전 ${Math.round(previousPower ?? 0)}`;
   dom.battleBanner.textContent = app.game.banner;
 
+  // Weapon slot pill: SS1 | SS2 | NEW(n)
+  const weaponPillEl = document.getElementById("weapon-slot-pill");
+  if (weaponPillEl && localPlayer) {
+    const slot = localPlayer.selectedWeapon ?? "ss1";
+    const newLeft = localPlayer.newUsesRemaining ?? 2;
+    const tank = TANK_TYPES[localPlayer.tankType] ?? TANK_TYPES.armor;
+    const ss1Name = WEAPONS[tank.weapons?.ss1]?.name ?? "SS1";
+    const ss2Name = WEAPONS[tank.weapons?.ss2]?.name ?? "SS2";
+    const newName = WEAPONS[tank.weapons?.new]?.name ?? "NEW";
+    weaponPillEl.innerHTML = [
+      { key: "ss1", label: `1 ${ss1Name}` },
+      { key: "ss2", label: `2 ${ss2Name}` },
+      { key: "new", label: `3 ${newName}(${newLeft})` },
+    ]
+      .map(({ key, label }) =>
+        `<span class="weapon-slot-btn${key === slot ? " active" : ""}${key === "new" && newLeft <= 0 ? " disabled" : ""}">${label}</span>`,
+      )
+      .join(" | ");
+  }
+
   if (!canLocalPlayerAct()) {
     clearLocalHeldInputs();
   }
@@ -5849,6 +5879,24 @@ function applyKeyboard(event) {
     startChargeInput();
     return;
   }
+
+  // Weapon slot selector: 1=SS1, 2=SS2, 3=NEW
+  if (event.code === "Digit1" || event.code === "Numpad1") {
+    event.preventDefault();
+    setSelectedWeapon(getLocalPlayer(), "ss1");
+    return;
+  }
+  if (event.code === "Digit2" || event.code === "Numpad2") {
+    event.preventDefault();
+    setSelectedWeapon(getLocalPlayer(), "ss2");
+    return;
+  }
+  if (event.code === "Digit3" || event.code === "Numpad3") {
+    event.preventDefault();
+    setSelectedWeapon(getLocalPlayer(), "new");
+    return;
+  }
+
   const action = map[event.code];
   if (!action) {
     return;
