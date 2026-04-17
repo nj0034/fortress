@@ -12,6 +12,15 @@ import {
 } from "./src/config.js";
 import { TANK_TYPES } from "./src/data/tanks.js";
 import { THEMES } from "./src/data/maps.js";
+import {
+  createTurnManager,
+  pickNextTurn,
+  applyAction as applyTurnAction,
+  applyStatusDelay as applyTurnStatusDelay,
+  removeTank as removeTurnTank,
+  normalizeDelays as normalizeTurnDelays,
+  snapshot as snapshotTurnManager,
+} from "./src/sim/turn.js";
 
 const PEER_CONFIG = {
   host: "0.peerjs.com",
@@ -154,6 +163,7 @@ function createEmptyGame(themeId) {
     wind: 0,
     currentTurnIndex: 0,
     turnNumber: 0,
+    turnManager: null,
     banner: "로비를 열면 전장을 준비합니다.",
     winnerId: null,
     resolveTimer: 0,
@@ -1350,22 +1360,33 @@ function advanceTurn() {
     return;
   }
 
-  let nextIndex = app.game.currentTurnIndex;
-  for (let i = 0; i < app.game.players.length; i += 1) {
-    nextIndex = (nextIndex + 1) % app.game.players.length;
-    const nextPlayer = app.game.players[nextIndex];
-    if (nextPlayer.alive) {
-      app.game.currentTurnIndex = nextIndex;
-      app.game.turnNumber += 1;
-      app.game.phase = "aim";
-      app.game.resolveTimer = 0;
-      setupTurn();
-      setTicker(`${nextPlayer.name}의 턴입니다.`);
-      broadcastSnapshot(true);
-      markUiDirty();
-      return;
-    }
+  const mgr = app.game.turnManager;
+  if (!mgr) {
+    // Fallback: should not happen in battle, but guard for safety
+    endBattle(alive[0] ?? null);
+    return;
   }
+
+  // Mark dead tanks in the manager
+  for (const p of app.game.players) {
+    if (!p.alive) removeTurnTank(mgr, p.id);
+  }
+  normalizeTurnDelays(mgr);
+  const nextId = pickNextTurn(mgr);
+  const nextIndex = app.game.players.findIndex((p) => p.id === nextId);
+  if (nextIndex < 0) {
+    endBattle(alive[0] ?? null);
+    return;
+  }
+
+  app.game.currentTurnIndex = nextIndex;
+  app.game.turnNumber += 1;
+  app.game.phase = "aim";
+  app.game.resolveTimer = 0;
+  setupTurn();
+  setTicker(`${app.game.players[nextIndex].name}의 턴입니다.`);
+  broadcastSnapshot(true);
+  markUiDirty();
 }
 
 function startBattle() {
@@ -1419,6 +1440,15 @@ function startBattle() {
     const j = Math.floor(Math.random() * (i + 1));
     [app.game.players[i], app.game.players[j]] = [app.game.players[j], app.game.players[i]];
   }
+
+  app.game.turnManager = createTurnManager(
+    app.game.players.map((p) => ({
+      id: p.id,
+      baseDelay: TANK_TYPES[p.tankType]?.baseDelay ?? 720, // backward-compat default
+    })),
+  );
+  const firstId = pickNextTurn(app.game.turnManager);
+  app.game.currentTurnIndex = app.game.players.findIndex((p) => p.id === firstId);
 
   layoutBattlePlayers();
   setupTurn();
@@ -1703,6 +1733,8 @@ function processControlAction(playerId, action) {
     if (player.isCharging) {
       player.isCharging = false;
       fireWeapon(player);
+      // TODO: use ss2/new actionType when weapon slots land (Phase 1 later task)
+      if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: player.id, actionType: "ss1" });
       broadcastSnapshot(true);
       markUiDirty();
     }
@@ -1764,6 +1796,7 @@ function applyStepAction(player, actionType) {
       }
     }
     player.fuel = clamp(player.fuel - MOVE_COST, 0, TURN_FUEL);
+    if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: player.id, actionType: "move", fuelUsed: MOVE_COST });
     if (player.aimSide !== newAimSide) {
       player.aimSide = newAimSide;
       player.angle = newAimSide === "right" ? 56 : 124;
@@ -2161,6 +2194,8 @@ function updateBot(dtMs) {
   current.power = plan.power;
   setTicker(`${current.name}가 ${target.name}에게 조준합니다.`);
   fireWeapon(current);
+  // TODO: use ss2/new actionType when weapon slots land (Phase 1 later task)
+  if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: current.id, actionType: "ss1" });
   broadcastSnapshot(true);
   markUiDirty();
 }
