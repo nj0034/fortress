@@ -1994,6 +1994,11 @@ function carveTerrain(centerX, centerY, radius) {
 
   carveLayer(app.game.terrain);
   carveLayer(app.game.supportTerrain);
+
+  // Plan C: also carve the pixel bitmap so visible crater forms
+  if (app.game.bitmap) {
+    applyExplosionCrater(centerX, centerY, radius);
+  }
 }
 
 function resolveExplosion(projectile, impactPoint, directHitId = null) {
