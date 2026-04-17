@@ -59,6 +59,7 @@ import {
 import { drawTerrain as drawTerrainBitmap } from "./src/render/terrainRender.js";
 import { buildTurnOrderView } from "./src/ui/turnOrder.js";
 import { buildWeaponSlotsView, selectedWeaponReducer } from "./src/ui/weaponSlots.js";
+import { drawStatusIcons } from "./src/ui/statusIcons.js";
 
 // Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
 const USE_SVG_TANKS = true;
@@ -5893,6 +5894,17 @@ function drawBattle(now) {
     .slice()
     .sort((a, b) => a.y - b.y)
     .forEach(drawPlayer);
+
+  // Draw status effect icons above tanks that have pending statuses
+  if (app.game.turnManager) {
+    for (const player of app.game.players) {
+      const statuses = app.game.turnManager.pendingStatuses[player.id] ?? [];
+      if (statuses.length > 0) {
+        drawStatusIcons(ctx, player, statuses);
+      }
+    }
+  }
+
   ctx.restore();
 
   if (app.game.phase === "game-over" && app.game.winnerId) {
