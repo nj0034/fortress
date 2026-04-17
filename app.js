@@ -29,6 +29,13 @@ import {
   snapshot as snapshotTurnManager,
 } from "./src/sim/turn.js";
 import {
+  fireWeapon as simFireWeapon,
+  resolveHit,
+  resolveSelfHeal,
+  WEAPON_SLOT_DELAY,
+} from "./src/sim/weapons.js";
+import { WEAPONS } from "./src/data/weapons.js";
+import {
   createTerrain,
   isSolidAt,
   surfaceYAt,
@@ -146,7 +153,7 @@ let pendingDirtyRect = null;
 
 const app = {
   selectedTheme: loadSetting("fortress_selected_theme", DEFAULT_THEME_ID),
-  selectedTank: loadSetting("fortress_selected_tank", "ironclad"),
+  selectedTank: loadSetting("fortress_selected_tank", "armor"),
   draftName: loadSetting("fortress_player_name", "Commander"),
   localRole: null,
   localPlayerId: null,
@@ -905,15 +912,15 @@ function reflowPlayersOntoTerrain() {
 }
 
 function createPlayer({ id, name, tankType, isHost = false, isBot = false, connected = true }) {
-  const tank = TANK_TYPES[tankType] ?? TANK_TYPES.ironclad;
+  const tank = TANK_TYPES[tankType] ?? TANK_TYPES.armor;
   return {
     id,
     name,
     tankType,
-    color: tank.color,
-    maxHealth: tank.maxHealth,
-    health: tank.maxHealth,
-    shield: tank.maxShield ? Math.floor(tank.maxShield * 0.35) : 0,
+    color: tank.visual?.primaryColor ?? "#ffb84f",
+    maxHealth: tank.stats.maxHealth,
+    health: tank.stats.maxHealth,
+    shield: 0,
     aimSide: "right",
     angle: 58,
     power: 66,
@@ -929,6 +936,8 @@ function createPlayer({ id, name, tankType, isHost = false, isBot = false, conne
     isHost,
     isBot,
     connected,
+    selectedWeapon: "ss1",
+    newUsesRemaining: 2,
   };
 }
 
@@ -1450,13 +1459,6 @@ function setupTurn() {
   });
   current.fuel = TURN_FUEL;
   current.power = MIN_POWER;
-  const tank = TANK_TYPES[current.tankType];
-  if (tank.healthRegen) {
-    current.health = clamp(current.health + tank.healthRegen, 0, current.maxHealth);
-  }
-  if (tank.shieldRegen) {
-    current.shield = clamp(current.shield + tank.shieldRegen, 0, tank.maxShield ?? tank.shieldRegen);
-  }
   if (app.game.turnNumber === 1 || (app.game.turnNumber - 1) % 4 === 0) {
     app.game.wind = Number(((Math.random() - 0.5) * 0.36).toFixed(2));
   }
@@ -1561,10 +1563,10 @@ function startBattle() {
     return {
       ...player,
       tankType: tankId,
-      color: tank.color,
-      health: tank.maxHealth,
-      maxHealth: tank.maxHealth,
-      shield: tank.maxShield ? Math.floor(tank.maxShield * 0.35) : 0,
+      color: tank.visual?.primaryColor ?? "#ffb84f",
+      health: tank.stats.maxHealth,
+      maxHealth: tank.stats.maxHealth,
+      shield: 0,
       aimSide: player.aimSide ?? "right",
       power: MIN_POWER,
       lastFiredPower: null,
@@ -1572,6 +1574,8 @@ function startBattle() {
       fallVelocity: 0,
       alive: true,
       fuel: TURN_FUEL,
+      selectedWeapon: "ss1",
+      newUsesRemaining: 2,
     };
   });
 
@@ -1583,7 +1587,7 @@ function startBattle() {
   app.game.turnManager = createTurnManager(
     app.game.players.map((p) => ({
       id: p.id,
-      baseDelay: TANK_TYPES[p.tankType]?.baseDelay ?? 720, // backward-compat default
+      baseDelay: TANK_TYPES[p.tankType]?.stats?.baseDelay ?? 720,
     })),
   );
   const firstId = pickNextTurn(app.game.turnManager);
@@ -1719,23 +1723,48 @@ function spawnProjectile(player, shot) {
 }
 
 function fireWeapon(player) {
-  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+  const slot = player.selectedWeapon ?? "ss1";
+  if (slot === "new" && (player.newUsesRemaining ?? 0) <= 0) return;
   player.isCharging = false;
   player.lastFiredPower = Math.round(clamp(player.power, MIN_POWER, MAX_POWER));
   player.recoilPhase = 0;
   resetHeldActions(player);
-  app.game.pendingShots = tank.shots.map((shot, index) => ({
-    ...cloneSimple(shot),
+  const weaponId = tank.weapons[slot];
+  const weapon = WEAPONS[weaponId];
+  const rng = createPurposeRng(app.game.matchSeed ?? 0, `combat:${app.game.turnNumber ?? 0}`);
+  const muzzle = getMuzzle(player);
+  const { projectiles } = simFireWeapon(
+    { tanks: app.game.players, terrain: null, turn: app.game.turnManager },
+    weaponId,
+    { x: muzzle.x, y: muzzle.y },
+    player.angle,
+    player.power,
+    app.game.wind,
+    rng,
+  );
+  // Convert sim projectiles to game projectile format and add to pendingShots
+  app.game.pendingShots = projectiles.map((p, index) => ({
+    ...p,
     id: `${player.id}-${index}`,
     ownerId: player.id,
+    delay: index * 0,
+    spread: 0,
+    speedMultiplier: 1,
   }));
+  if (slot === "new") player.newUsesRemaining = Math.max(0, (player.newUsesRemaining ?? 2) - 1);
+  // Self-heal for turtle weapons
+  if (weapon?.projectile?.selfHeal) {
+    resolveSelfHeal({}, projectiles[0], player);
+  }
   app.game.phase = "projectile";
-  setTicker(`${player.name}의 ${tank.weaponName} 발사!`);
+  const weaponName = weapon?.name ?? slot.toUpperCase();
+  setTicker(`${player.name}의 ${weaponName} 발사!`);
 }
 
 function applyDamage(player, amount) {
-  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
-  let damage = amount * tank.damageTakenMultiplier;
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+  let damage = amount * (tank.stats?.armor ?? 1.0);
 
   if (player.shield > 0) {
     const absorbed = Math.min(player.shield, damage * 0.55);
@@ -1837,9 +1866,9 @@ function processTankChangeRequest(playerId, tankId) {
   }
   const tank = TANK_TYPES[tankId];
   player.tankType = tankId;
-  player.color = tank.color;
-  player.maxHealth = tank.maxHealth;
-  player.health = tank.maxHealth;
+  player.color = tank.visual?.primaryColor ?? "#ffb84f";
+  player.maxHealth = tank.stats.maxHealth;
+  player.health = tank.stats.maxHealth;
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -1874,8 +1903,7 @@ function processControlAction(playerId, action) {
     if (player.isCharging) {
       player.isCharging = false;
       fireWeapon(player);
-      // TODO: use ss2/new actionType when weapon slots land (Phase 1 later task)
-      if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: player.id, actionType: "ss1" });
+      if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: player.id, actionType: player.selectedWeapon ?? "ss1" });
       broadcastSnapshot(true);
       markUiDirty();
     }
@@ -1927,8 +1955,8 @@ function applyStepAction(player, actionType) {
       return false;
     }
     const direction = actionType === "move-left" ? -1 : 1;
-    const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
-    player.x = clamp(player.x + direction * MOVE_STEP * tank.mobility, 32, WORLD_WIDTH - 32);
+    const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+    player.x = clamp(player.x + direction * MOVE_STEP * (tank.stats?.mobility ?? 1.0), 32, WORLD_WIDTH - 32);
     const groundY = getGroundYForPlayer(player.x, player.y);
     if (groundY !== null) {
       player.y = Math.min(player.y, groundY);
@@ -2256,7 +2284,17 @@ function updateProjectiles(dtMs) {
 
 function findBotShot(player, target) {
   const wind = app.game.wind;
-  const referenceShot = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).shots[0];
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+  const weaponId = tank.weapons["ss1"];
+  const weaponDef = WEAPONS[weaponId] ?? {};
+  const referenceShot = {
+    speedMultiplier: weaponDef.projectile?.speedMultiplier ?? 1.0,
+    gravityScale: weaponDef.projectile?.gravityScale ?? 1.0,
+    windFactor: weaponDef.projectile?.windFactor ?? 1.0,
+    homingRange: 0,
+    homingTurnRate: 0,
+    homingCone: 0,
+  };
   const aimSide = getAimSide(player);
   const angleStart = aimSide === "right" ? 18 : 90;
   const angleEnd = aimSide === "right" ? 90 : 162;
@@ -2270,9 +2308,9 @@ function findBotShot(player, target) {
         vx: Math.cos(degToRad(angle)) * getLaunchSpeed(power, referenceShot),
         vy: -Math.sin(degToRad(angle)) * getLaunchSpeed(power, referenceShot),
         ownerId: player.id,
-        homingRange: referenceShot.homingRange ?? 0,
-        homingTurnRate: referenceShot.homingTurnRate ?? 0,
-        homingCone: referenceShot.homingCone ?? 0,
+        homingRange: 0,
+        homingTurnRate: 0,
+        homingCone: 0,
         homingActive: false,
         lockedTargetId: null,
       };
@@ -2335,8 +2373,7 @@ function updateBot(dtMs) {
   current.power = plan.power;
   setTicker(`${current.name}가 ${target.name}에게 조준합니다.`);
   fireWeapon(current);
-  // TODO: use ss2/new actionType when weapon slots land (Phase 1 later task)
-  if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: current.id, actionType: "ss1" });
+  if (app.game.turnManager) applyTurnAction(app.game.turnManager, { tankId: current.id, actionType: current.selectedWeapon ?? "ss1" });
   broadcastSnapshot(true);
   markUiDirty();
 }
@@ -2593,7 +2630,7 @@ function setupIncomingConnection(connection) {
       return;
     }
 
-    const tankType = TANK_TYPES[metadata.tankType] ? metadata.tankType : "ironclad";
+    const tankType = TANK_TYPES[metadata.tankType] ? metadata.tankType : "armor";
     const playerName = (metadata.playerName || "Gunner").slice(0, 18);
     const player = createPlayer({
       id: playerId,
@@ -3107,9 +3144,9 @@ function selectTank(tankId) {
     if (hostPlayer) {
       const tank = TANK_TYPES[tankId];
       hostPlayer.tankType = tankId;
-      hostPlayer.color = tank.color;
-      hostPlayer.maxHealth = tank.maxHealth;
-      hostPlayer.health = tank.maxHealth;
+      hostPlayer.color = tank.visual?.primaryColor ?? "#ffb84f";
+      hostPlayer.maxHealth = tank.stats.maxHealth;
+      hostPlayer.health = tank.stats.maxHealth;
       broadcastSnapshot(true);
     }
   }
@@ -5291,14 +5328,19 @@ function drawProjectile(projectile) {
 }
 
 function getPreviewShot(player) {
-  const shots = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).shots;
-  if (!shots?.length) {
-    return null;
-  }
-  if (shots.length === 1) {
-    return shots[0];
-  }
-  return { ...shots[0], spread: 0 };
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
+  const slot = player.selectedWeapon ?? "ss1";
+  const weaponId = tank.weapons[slot];
+  const weapon = WEAPONS[weaponId];
+  if (!weapon) return null;
+  return {
+    speedMultiplier: weapon.projectile.speedMultiplier ?? 1.0,
+    gravityScale: weapon.projectile.gravityScale ?? 1.0,
+    windFactor: weapon.projectile.windFactor ?? 1.0,
+    damage: weapon.projectile.damage,
+    radius: weapon.projectile.radius,
+    spread: 0,
+  };
 }
 
 function drawAimPreview(player) {
@@ -5659,9 +5701,9 @@ function drawTankTurretDetails(tankId, player, bodyColor) {
 }
 
 function drawPlayer(player) {
-  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad;
+  const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
   const isCurrent = getCurrentPlayer()?.id === player.id && app.game.phase !== "game-over";
-  const bodyColor = player.alive ? tank.color : "#97a4b3";
+  const bodyColor = player.alive ? (tank.visual?.primaryColor ?? player.color ?? "#ffb84f") : "#97a4b3";
   const trimColor = player.alive ? colorWithAlpha("#ffffff", 0.66) : colorWithAlpha("#d4dae2", 0.55);
 
   // Advance per-frame animation counters
@@ -5733,7 +5775,7 @@ function drawPlayer(player) {
   ctx.fillStyle = player.alive ? "#68e7c3" : "#96a5b4";
   ctx.fillRect(player.x - 30, player.y - 28, (player.health / player.maxHealth) * 60, 8);
   if (player.shield > 0) {
-    const maxShield = (TANK_TYPES[player.tankType] ?? TANK_TYPES.ironclad).maxShield ?? 26;
+    const maxShield = 26;
     ctx.fillStyle = "rgba(120,216,255,0.92)";
     ctx.fillRect(player.x - 30, player.y - 18, (player.shield / maxShield) * 60, 4);
   }
