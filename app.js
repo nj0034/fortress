@@ -61,8 +61,6 @@ import { buildTurnOrderView } from "./src/ui/turnOrder.js";
 import { buildWeaponSlotsView, selectedWeaponReducer } from "./src/ui/weaponSlots.js";
 import { drawStatusIcons } from "./src/ui/statusIcons.js";
 
-// Feature flag: use SVG-based tank rendering (set false to revert to canvas drawing)
-const USE_SVG_TANKS = true;
 
 const PEER_CONFIG = {
   host: "0.peerjs.com",
@@ -3202,208 +3200,35 @@ function drawPreviewTrackSegment(context, x, y, width, height, color) {
   roundRect(context, x, y, width, height, Math.min(height * 0.45, 8), true, false);
 }
 
-function drawTankPreview(context, tankId, color, variant = "tile") {
-  if (!context) {
-    return;
-  }
-
-  const width = context.canvas.width;
-  const height = context.canvas.height;
-  const profile = {
-    hero: { x: 0.48, y: 0.82, scale: 1.06, angle: -0.44 },
-    tile: { x: 0.5, y: 0.82, scale: 0.82, angle: -0.38 },
-    pill: { x: 0.5, y: 0.82, scale: 0.68, angle: -0.34 },
-  }[variant] ?? { x: 0.5, y: 0.82, scale: 0.82, angle: -0.38 };
-
-  const deep = shadeHex(color, -28);
-  const glow = shadeHex(color, 24);
-  const trim = colorWithAlpha("#ffffff", 0.74);
-  const ink = "#1f3348";
-  const scale = Math.min(width / 96, height / 76) * profile.scale;
-
-  context.clearRect(0, 0, width, height);
-  context.save();
-  context.translate(width * profile.x, height * profile.y);
-  context.scale(scale, scale);
-
-  context.fillStyle = "rgba(17, 39, 62, 0.16)";
-  context.beginPath();
-  context.ellipse(0, 16, 28, 8, 0, 0, Math.PI * 2);
-  context.fill();
-
-  if (tankId === "skyrider") {
-    context.fillStyle = colorWithAlpha("#dffcff", 0.45);
-    context.beginPath();
-    context.ellipse(0, 6, 31, 10, 0, 0, Math.PI * 2);
-    context.fill();
-    context.fillStyle = ink;
-    roundRect(context, -26, 2, 52, 14, 10, true, false);
-    drawPreviewTrackSegment(context, -21, 6, 16, 5, "#86f7ff");
-    drawPreviewTrackSegment(context, 5, 6, 16, 5, "#86f7ff");
-    context.strokeStyle = trim;
-    context.lineWidth = 2.2;
-    context.beginPath();
-    context.moveTo(-33, 4);
-    context.lineTo(-18, -8);
-    context.lineTo(-8, 4);
-    context.moveTo(33, 4);
-    context.lineTo(18, -8);
-    context.lineTo(8, 4);
-    context.stroke();
-    context.fillStyle = color;
-    context.beginPath();
-    context.moveTo(-24, 7);
-    context.quadraticCurveTo(-14, -18, 0, -20);
-    context.quadraticCurveTo(16, -18, 24, 5);
-    context.quadraticCurveTo(12, 11, -18, 11);
-    context.closePath();
-    context.fill();
-    context.strokeStyle = trim;
-    context.lineWidth = 2.4;
-    context.stroke();
-    context.fillStyle = "#f7feff";
-    roundRect(context, -10, -24, 20, 10, 5, true, false);
-    context.strokeStyle = colorWithAlpha("#dbffff", 0.85);
-    context.beginPath();
-    context.moveTo(0, -18);
-    context.lineTo(Math.cos(profile.angle) * 33, -18 + Math.sin(profile.angle) * 33);
-    context.stroke();
-  } else if (tankId === "twinfang") {
-    context.fillStyle = ink;
-    roundRect(context, -26, 1, 52, 16, 11, true, false);
-    drawPreviewTrackSegment(context, -22, 4, 18, 8, "#213446");
-    drawPreviewTrackSegment(context, 0, 4, 18, 8, "#213446");
-    context.fillStyle = color;
-    roundRect(context, -24, -15, 48, 24, 11, true, false);
-    context.fillStyle = deep;
-    roundRect(context, -21, -8, 18, 12, 6, true, false);
-    roundRect(context, 3, -8, 18, 12, 6, true, false);
-    context.fillStyle = "#fff4ff";
-    roundRect(context, -16, -20, 11, 8, 4, true, false);
-    roundRect(context, 5, -20, 11, 8, 4, true, false);
-    context.strokeStyle = trim;
-    context.lineWidth = 3.1;
-    context.lineCap = "round";
-    context.beginPath();
-    context.moveTo(-5, -18);
-    context.lineTo(-5 + Math.cos(profile.angle) * 28, -18 + Math.sin(profile.angle) * 28);
-    context.moveTo(5, -18);
-    context.lineTo(5 + Math.cos(profile.angle) * 28, -18 + Math.sin(profile.angle) * 28);
-    context.stroke();
-  } else if (tankId === "mole") {
-    context.fillStyle = ink;
-    roundRect(context, -29, 0, 58, 18, 12, true, false);
-    drawPreviewTrackSegment(context, -24, 3, 14, 9, "#213446");
-    drawPreviewTrackSegment(context, -6, 3, 14, 9, "#213446");
-    drawPreviewTrackSegment(context, 12, 3, 14, 9, "#213446");
-    context.fillStyle = color;
-    roundRect(context, -24, -13, 48, 23, 11, true, false);
-    context.fillStyle = deep;
-    roundRect(context, -16, -29, 32, 11, 5, true, false);
-    context.fillStyle = colorWithAlpha("#f4ffe6", 0.94);
-    roundRect(context, -11, -26, 7, 5, 2, true, false);
-    roundRect(context, -3.5, -26, 7, 5, 2, true, false);
-    roundRect(context, 4, -26, 7, 5, 2, true, false);
-    context.fillStyle = colorWithAlpha("#d7ff71", 0.96);
-    context.beginPath();
-    context.arc(0, -17.5, 4.2, 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = trim;
-    context.lineWidth = 2.2;
-    context.lineCap = "round";
-    context.beginPath();
-    context.moveTo(-3, -22);
-    context.lineTo(-3 + Math.cos(profile.angle) * 28, -22 + Math.sin(profile.angle) * 28);
-    context.moveTo(3, -18);
-    context.lineTo(3 + Math.cos(profile.angle) * 28, -18 + Math.sin(profile.angle) * 28);
-    context.stroke();
-  } else if (tankId === "aegis") {
-    context.fillStyle = ink;
-    roundRect(context, -24, 0, 48, 16, 12, true, false);
-    drawPreviewTrackSegment(context, -20, 4, 40, 7, "#273d54");
-    context.fillStyle = color;
-    roundRect(context, -23, -13, 46, 23, 12, true, false);
-    context.fillStyle = colorWithAlpha("#eff7ff", 0.95);
-    context.beginPath();
-    context.arc(0, -12, 12, Math.PI, 0);
-    context.fill();
-    context.fillStyle = colorWithAlpha("#97b2ff", 0.5);
-    context.beginPath();
-    context.arc(0, -12, 16, Math.PI, 0);
-    context.fill();
-    context.strokeStyle = colorWithAlpha("#b8e8ff", 0.78);
-    context.lineWidth = 2;
-    context.beginPath();
-    context.arc(0, -20, 16, Math.PI * 0.1, Math.PI * 0.9);
-    context.stroke();
-    context.strokeStyle = trim;
-    context.lineWidth = 3.4;
-    context.beginPath();
-    context.moveTo(0, -20);
-    context.lineTo(Math.cos(profile.angle) * 28, -20 + Math.sin(profile.angle) * 28);
-    context.stroke();
-  } else {
-    context.fillStyle = ink;
-    roundRect(context, -24, 0, 48, 18, 12, true, false);
-    drawPreviewTrackSegment(context, -19, 4, 38, 8, "#223749");
-    context.fillStyle = color;
-    roundRect(context, -24, -17, 48, 28, 12, true, false);
-    context.fillStyle = deep;
-    context.beginPath();
-    context.moveTo(-26, -4);
-    context.lineTo(0, -18);
-    context.lineTo(26, -4);
-    context.lineTo(18, 10);
-    context.lineTo(-18, 10);
-    context.closePath();
-    context.fill();
-    context.fillStyle = colorWithAlpha("#fff8e0", 0.94);
-    roundRect(context, -8, -27, 16, 8, 4, true, false);
-    context.strokeStyle = trim;
-    context.lineWidth = 4.6;
-    context.lineCap = "round";
-    context.beginPath();
-    context.moveTo(0, -20);
-    context.lineTo(Math.cos(profile.angle) * 34, -20 + Math.sin(profile.angle) * 34);
-    context.stroke();
-  }
-
-  context.restore();
-}
 
 function renderTankPreviewCanvas(canvas, tankId, variant = "tile") {
   if (!canvas) {
     return;
   }
 
-  if (USE_SVG_TANKS && TANK_IDS.includes(tankId)) {
-    // SVG-rendered Phase-1 tank
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const profiles = {
-      hero: { x: 0.5, y: 0.86, scale: 1.0 },
-      tile: { x: 0.5, y: 0.86, scale: 0.72 },
-      pill: { x: 0.5, y: 0.86, scale: 0.45 },
-    };
-    const p = profiles[variant] ?? profiles.tile;
-    const team = TEAM_COLORS[0];
-    preRasterize(tankId, team).catch(() => {});
-    renderTankToCanvas(ctx, {
-      tankId,
-      x: canvas.width * p.x,
-      y: canvas.height * p.y,
-      angle: 0,
-      turretAngle: -15 * (Math.PI / 180),
-      teamColor: team,
-      scale: p.scale,
-    });
+  if (!TANK_IDS.includes(tankId)) {
     return;
   }
 
-  if (!TANK_TYPES[tankId]) {
-    return;
-  }
-  drawTankPreview(canvas.getContext("2d"), tankId, TANK_TYPES[tankId].visual?.primaryColor ?? "#ffb84f", variant);
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const profiles = {
+    hero: { x: 0.5, y: 0.86, scale: 1.0 },
+    tile: { x: 0.5, y: 0.86, scale: 0.72 },
+    pill: { x: 0.5, y: 0.86, scale: 0.45 },
+  };
+  const p = profiles[variant] ?? profiles.tile;
+  const team = TEAM_COLORS[0];
+  preRasterize(tankId, team).catch(() => {});
+  renderTankToCanvas(ctx, {
+    tankId,
+    x: canvas.width * p.x,
+    y: canvas.height * p.y,
+    angle: 0,
+    turretAngle: -15 * (Math.PI / 180),
+    teamColor: team,
+    scale: p.scale,
+  });
 }
 
 function renderLobbyTankCanvases() {
@@ -5565,233 +5390,6 @@ function drawRivetRow(startX, y, count, gap, color) {
   }
 }
 
-function drawTankChassis(tankId, bodyColor, trimColor) {
-  ctx.fillStyle = "#2c455d";
-
-  if (tankId === "skyrider") {
-    roundRect(ctx, -23, 1, 46, 14, 11, true, false);
-    drawTrackSegment(-18, 5, 14, 5, "#87f4ff");
-    drawTrackSegment(4, 5, 14, 5, "#87f4ff");
-    ctx.strokeStyle = colorWithAlpha("#dffcff", 0.95);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-30, 2);
-    ctx.lineTo(-18, -6);
-    ctx.lineTo(-10, 4);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(30, 2);
-    ctx.lineTo(18, -6);
-    ctx.lineTo(10, 4);
-    ctx.stroke();
-    return;
-  }
-
-  if (tankId === "mole") {
-    roundRect(ctx, -28, 0, 56, 18, 12, true, false);
-    drawTrackSegment(-22, 3, 14, 9, "#1e2f40");
-    drawTrackSegment(-4, 3, 14, 9, "#1e2f40");
-    drawTrackSegment(14, 3, 14, 9, "#1e2f40");
-    ctx.fillStyle = shadeHex(bodyColor, -28);
-    roundRect(ctx, -12, 10, 24, 5, 3, true, false);
-    return;
-  }
-
-  if (tankId === "aegis") {
-    roundRect(ctx, -24, 0, 48, 16, 12, true, false);
-    drawTrackSegment(-20, 4, 40, 7, "#253b52");
-    ctx.strokeStyle = colorWithAlpha("#a9f0ff", 0.6);
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(0, 7, 22, Math.PI * 0.08, Math.PI * 0.92);
-    ctx.stroke();
-    return;
-  }
-
-  if (tankId === "twinfang") {
-    roundRect(ctx, -24, 1, 48, 16, 12, true, false);
-    drawTrackSegment(-20, 4, 16, 8, "#213446");
-    drawTrackSegment(-2, 4, 16, 8, "#213446");
-    drawTrackSegment(16, 4, 4, 8, "#213446");
-    ctx.fillStyle = shadeHex(bodyColor, 22);
-    roundRect(ctx, -25, -2, 50, 5, 4, true, false);
-    return;
-  }
-
-  roundRect(ctx, -24, 0, 48, 18, 12, true, false);
-  drawTrackSegment(-19, 4, 38, 8, "#223749");
-}
-
-function drawTankHull(tankId, bodyColor, trimColor) {
-  ctx.fillStyle = bodyColor;
-  ctx.strokeStyle = trimColor;
-  ctx.lineWidth = 3;
-
-  if (tankId === "ironclad") {
-    roundRect(ctx, -24, -17, 48, 28, 12, true, true);
-    ctx.fillStyle = shadeHex(bodyColor, -22);
-    ctx.beginPath();
-    ctx.moveTo(-26, -4);
-    ctx.lineTo(0, -18);
-    ctx.lineTo(26, -4);
-    ctx.lineTo(18, 10);
-    ctx.lineTo(-18, 10);
-    ctx.closePath();
-    ctx.fill();
-    drawRivetRow(-14, -5, 5, 7, colorWithAlpha("#fff7d2", 0.72));
-    return;
-  }
-
-  if (tankId === "skyrider") {
-    ctx.beginPath();
-    ctx.moveTo(-24, 6);
-    ctx.quadraticCurveTo(-14, -18, 0, -20);
-    ctx.quadraticCurveTo(16, -18, 24, 4);
-    ctx.quadraticCurveTo(10, 10, -18, 10);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = colorWithAlpha("#ffffff", 0.9);
-    roundRect(ctx, -8, -25, 16, 10, 5, true, false);
-    ctx.fillStyle = colorWithAlpha("#6cf0ff", 0.92);
-    roundRect(ctx, -18, -2, 9, 5, 3, true, false);
-    roundRect(ctx, 9, -2, 9, 5, 3, true, false);
-    return;
-  }
-
-  if (tankId === "twinfang") {
-    roundRect(ctx, -24, -14, 48, 24, 11, true, true);
-    ctx.fillStyle = shadeHex(bodyColor, -20);
-    roundRect(ctx, -21, -7, 18, 12, 6, true, false);
-    roundRect(ctx, 3, -7, 18, 12, 6, true, false);
-    ctx.fillStyle = colorWithAlpha("#fff5ff", 0.9);
-    roundRect(ctx, -16, -20, 11, 8, 4, true, false);
-    roundRect(ctx, 5, -20, 11, 8, 4, true, false);
-    return;
-  }
-
-  if (tankId === "mole") {
-    roundRect(ctx, -24, -13, 48, 23, 11, true, true);
-    ctx.fillStyle = shadeHex(bodyColor, -26);
-    roundRect(ctx, -18, -5, 36, 8, 4, true, false);
-    ctx.fillStyle = colorWithAlpha("#efffdc", 0.92);
-    roundRect(ctx, -10, -14, 20, 8, 4, true, false);
-    ctx.fillStyle = colorWithAlpha("#d5ff76", 0.86);
-    ctx.beginPath();
-    ctx.arc(0, -14, 6, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-
-  if (tankId === "aegis") {
-    roundRect(ctx, -23, -13, 46, 23, 12, true, true);
-    ctx.fillStyle = colorWithAlpha("#eff7ff", 0.95);
-    ctx.beginPath();
-    ctx.arc(0, -12, 12, Math.PI, 0);
-    ctx.fill();
-    ctx.fillStyle = colorWithAlpha("#97b2ff", 0.52);
-    ctx.beginPath();
-    ctx.arc(0, -12, 16, Math.PI, 0);
-    ctx.fill();
-    return;
-  }
-
-  roundRect(ctx, -22, -16, 44, 26, 12, true, true);
-}
-
-function drawTankTurretDetails(tankId, player, bodyColor) {
-  const angle = degToRad(player.angle);
-  const barrelColor = tankId === "ironclad" ? "#fff5d5" : "#f8feff";
-  let barrelWidth = 5;
-  let barrelLength = 34;
-  let turretY = -18;
-
-  if (tankId === "ironclad") {
-    ctx.fillStyle = shadeHex(bodyColor, -18);
-    roundRect(ctx, -13, -30, 26, 14, 8, true, false);
-    ctx.fillStyle = colorWithAlpha("#fff8e0", 0.92);
-    roundRect(ctx, -8, -26, 16, 8, 4, true, false);
-    barrelWidth = 7;
-    barrelLength = 38;
-    turretY = -20;
-  } else if (tankId === "skyrider") {
-    ctx.fillStyle = shadeHex(bodyColor, 18);
-    ctx.beginPath();
-    ctx.moveTo(-10, -20);
-    ctx.quadraticCurveTo(0, -34, 10, -20);
-    ctx.lineTo(6, -12);
-    ctx.lineTo(-6, -12);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = colorWithAlpha("#dbffff", 0.85);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -28);
-    ctx.lineTo(0, -38);
-    ctx.stroke();
-    barrelWidth = 4;
-    barrelLength = 38;
-  } else if (tankId === "twinfang") {
-    ctx.fillStyle = shadeHex(bodyColor, -12);
-    roundRect(ctx, -16, -25, 32, 11, 6, true, false);
-    ctx.strokeStyle = "#ffe6f3";
-    ctx.lineWidth = 3.2;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-5, -18);
-    ctx.lineTo(-5 + Math.cos(angle) * 30, -18 - Math.sin(angle) * 30);
-    ctx.moveTo(5, -18);
-    ctx.lineTo(5 + Math.cos(angle) * 30, -18 - Math.sin(angle) * 30);
-    ctx.stroke();
-    barrelWidth = 0;
-  } else if (tankId === "mole") {
-    ctx.fillStyle = shadeHex(bodyColor, -18);
-    roundRect(ctx, -16, -29, 32, 11, 5, true, false);
-    ctx.fillStyle = colorWithAlpha("#f4ffe5", 0.94);
-    roundRect(ctx, -11, -26, 7, 5, 2, true, false);
-    roundRect(ctx, -3.5, -26, 7, 5, 2, true, false);
-    roundRect(ctx, 4, -26, 7, 5, 2, true, false);
-    ctx.fillStyle = colorWithAlpha("#d6ff73", 0.95);
-    ctx.beginPath();
-    ctx.arc(0, -17.5, 4.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = colorWithAlpha("#fdfff2", 0.96);
-    ctx.lineWidth = 2.8;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-3, -22);
-    ctx.lineTo(-3 + Math.cos(angle) * 32, -22 - Math.sin(angle) * 32);
-    ctx.moveTo(3, -18);
-    ctx.lineTo(3 + Math.cos(angle) * 30, -18 - Math.sin(angle) * 30);
-    ctx.stroke();
-    barrelWidth = 0;
-  } else if (tankId === "aegis") {
-    ctx.fillStyle = colorWithAlpha("#ffffff", 0.88);
-    ctx.beginPath();
-    ctx.arc(0, -20, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = colorWithAlpha("#b8e8ff", 0.78);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, -20, 16, Math.PI * 0.1, Math.PI * 0.9);
-    ctx.stroke();
-    barrelWidth = 5.4;
-    barrelLength = 32;
-  } else {
-    ctx.fillStyle = "#f9ffff";
-    roundRect(ctx, -12, -28, 24, 16, 8, true, false);
-  }
-
-  if (barrelWidth > 0) {
-    ctx.strokeStyle = barrelColor;
-    ctx.lineWidth = barrelWidth;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(0, turretY);
-    ctx.lineTo(Math.cos(angle) * barrelLength, turretY - Math.sin(angle) * barrelLength);
-    ctx.stroke();
-  }
-}
 
 function drawPlayer(player) {
   const tank = TANK_TYPES[player.tankType] ?? TANK_TYPES.armor;
@@ -5807,56 +5405,31 @@ function drawPlayer(player) {
     player.tintFlash = Math.max(0, (player.tintFlash ?? 0) - 1 / 7.2);
   }
 
-  if (USE_SVG_TANKS && TANK_IDS.includes(tank.id)) {
-    // SVG-rendered Phase-1 tank — draw directly in world space
-    ctx.save();
-    ctx.translate(player.x, player.y);
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.beginPath();
+  ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (isCurrent) {
+    ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (isCurrent) {
-      ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 30, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-    renderTankToCanvas(ctx, {
-      tankId: tank.id,
-      x: player.x,
-      y: player.y,
-      angle: 0,
-      turretAngle: degToRad(player.angle),
-      teamColor: TEAM_COLORS[0],
-      recoilPhase: player.recoilPhase ?? 1,
-      tintFlash: player.tintFlash ?? 0,
-      scale: 0.5,
-    });
-  } else {
-    ctx.save();
-    ctx.translate(player.x, player.y);
-
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.beginPath();
-    ctx.ellipse(0, 18, 24, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    drawTankChassis(tank.id, bodyColor, trimColor);
-    drawTankHull(tank.id, bodyColor, trimColor);
-    drawTankTurretDetails(tank.id, player, bodyColor);
-
-    if (isCurrent) {
-      ctx.strokeStyle = "rgba(255, 170, 76, 0.8)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 30, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.restore();
+    ctx.arc(0, 0, 30, 0, Math.PI * 2);
+    ctx.stroke();
   }
+  ctx.restore();
+  renderTankToCanvas(ctx, {
+    tankId: tank.id,
+    x: player.x,
+    y: player.y,
+    angle: 0,
+    turretAngle: degToRad(player.angle),
+    teamColor: TEAM_COLORS[0],
+    recoilPhase: player.recoilPhase ?? 1,
+    tintFlash: player.tintFlash ?? 0,
+    scale: 0.5,
+  });
 
   ctx.save();
   ctx.textAlign = "center";
@@ -6170,16 +5743,14 @@ async function init() {
     setTicker("Peer 연결 스크립트를 불러오지 못했습니다. 네트워크를 확인해주세요.");
   }
 
-  if (USE_SVG_TANKS) {
-    try {
-      await loadTankTemplates();
-      // Pre-rasterize all tanks for all team colors to avoid placeholder frames
-      await Promise.all(
-        TANK_IDS.flatMap((id) => TEAM_COLORS.map((team) => preRasterize(id, team)))
-      );
-    } catch (e) {
-      console.warn("SVG tank templates failed to load, falling back to canvas drawing:", e);
-    }
+  try {
+    await loadTankTemplates();
+    // Pre-rasterize all tanks for all team colors to avoid placeholder frames
+    await Promise.all(
+      TANK_IDS.flatMap((id) => TEAM_COLORS.map((team) => preRasterize(id, team)))
+    );
+  } catch (e) {
+    console.warn("SVG tank templates failed to load:", e);
   }
 
   dom.playerNameInput.value = app.draftName;
